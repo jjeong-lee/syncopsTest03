@@ -1,0 +1,48 @@
+services:
+  database:
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fpe}
+      POSTGRES_USER: ${POSTGRES_USER:-fpe}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fpe-local-password}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+  backend:
+    image: faculty-performance-backend:0.1.0
+    build:
+      context: ../backend
+      dockerfile: ../infra/backend.Dockerfile
+    pull_policy: build
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://database:5432/${POSTGRES_DB:-fpe}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-fpe}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-fpe-local-password}
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      database:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/api/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  frontend:
+    image: faculty-performance-frontend:0.1.0
+    build:
+      context: ../frontend
+      dockerfile: ../infra/frontend.Dockerfile
+    pull_policy: build
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3000:80"
+volumes:
+  postgres-data:

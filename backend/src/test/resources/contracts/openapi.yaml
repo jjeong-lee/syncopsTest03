@@ -1,0 +1,2718 @@
+openapi: 3.0.3
+info:
+  title: 교수업적평가 공통기능 1차 API
+  version: 0.1.0
+  description: '한국교원대학교 교수업적평가시스템 공통기능 1차 완료 목표의 canonical HTTP API contract다.
+
+    모든 보호 API는 인증 세션을 요구하고, 모든 JSON 2xx/4xx 응답은 ApiResponse envelope을 사용한다.
+
+    '
+servers:
+- url: /api
+  description: frontend nginx reverse proxy를 통한 상대경로
+security:
+- SessionCookie: []
+tags:
+- name: health
+  description: 상태 확인
+- name: auth
+  description: 인증과 세션
+- name: users
+  description: 사용자 관리
+- name: organizations
+  description: 조직 관리
+- name: roles
+  description: 역할 관리
+- name: user-roles
+  description: 사용자 역할 관리
+- name: menus
+  description: 메뉴 관리
+- name: menu-permissions
+  description: 메뉴 권한 관리
+- name: code-groups
+  description: 코드그룹 관리
+- name: detail-codes
+  description: 상세코드 관리
+paths:
+  /health:
+    get:
+      tags:
+      - health
+      operationId: getHealth
+      summary: 상태 확인
+      security: []
+      x-related-requirements:
+      - REQ-001
+      - REQ-017
+      responses:
+        '200':
+          description: backend 상태가 정상이다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/HealthStatus'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /auth/login:
+    post:
+      tags:
+      - auth
+      operationId: login
+      summary: 로그인
+      security: []
+      x-related-requirements:
+      - REQ-012
+      - REQ-019
+      - REQ-023
+      x-related-fr:
+      - FR-011
+      - FR-017
+      x-business-rules:
+      - 내부 계정과 비밀번호로 인증하며 실제 SSO는 AuthenticationPort 뒤의 후속 Adapter로 남긴다.
+      - 성공 시 HttpOnly SameSite=Lax 세션 쿠키를 발급한다.
+      - 비활성 또는 잠긴 계정은 로그인할 수 없다.
+      - 시드 관리자 계정 admin/admin은 Docker Compose 실행 직후 로그인 가능해야 한다.
+      x-side-effects:
+      - user_session 레코드를 ACTIVE 상태로 저장한다.
+      - 인증 실패 또는 성공 이벤트를 request_id와 함께 구조화 로그로 기록한다.
+      x-state-transitions:
+      - user_session 없음 -> ACTIVE
+      x-required-tests:
+      - admin/admin 로그인 성공과 current user R09 확인 테스트
+      - 비활성 계정 로그인 실패 401 테스트
+      - Set-Cookie HttpOnly SameSite=Lax 검증 테스트
+      - 'happy: verify login contract'
+      - 'auth: verify login contract'
+      - 'validation: verify login contract'
+      - 'business: verify login contract'
+      - 'side-effect: verify login contract'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 로그인 성공
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: HttpOnly SameSite=Lax session cookie
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/CurrentUser'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /auth/logout:
+    post:
+      tags:
+      - auth
+      operationId: logout
+      summary: 로그아웃
+      x-related-requirements:
+      - REQ-012
+      - REQ-019
+      x-business-rules:
+      - 현재 ACTIVE 세션만 로그아웃 대상이다.
+      - 로그아웃 이후 같은 세션으로 보호 API를 호출하면 401로 차단한다.
+      x-side-effects:
+      - user_session.session_status를 REVOKED로 변경한다.
+      - 세션 쿠키 만료 응답을 반환한다.
+      x-state-transitions:
+      - ACTIVE -> REVOKED
+      x-required-tests:
+      - 로그아웃 후 current user 401 테스트
+      - 'happy: verify logout contract'
+      - 'auth: verify logout contract'
+      - 'validation: verify logout contract'
+      - 'business: verify logout contract'
+      - 'side-effect: verify logout contract'
+      responses:
+        '200':
+          description: 로그아웃 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/EmptyApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /auth/me:
+    get:
+      tags:
+      - auth
+      operationId: getCurrentUser
+      summary: 현재 사용자
+      x-related-requirements:
+      - REQ-012
+      - REQ-019
+      - REQ-023
+      responses:
+        '200':
+          description: 현재 인증 사용자와 역할
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/CurrentUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /users:
+    get:
+      tags:
+      - users
+      operationId: listUsers
+      summary: 사용자 목록
+      x-related-requirements:
+      - REQ-002
+      - REQ-013
+      - REQ-021
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
+      - $ref: '#/components/parameters/Sort'
+      - name: employeeNo
+        in: query
+        schema:
+          type: string
+        description: 교번 검색
+      - name: name
+        in: query
+        schema:
+          type: string
+        description: 성명 검색
+      - name: organizationCode
+        in: query
+        schema:
+          type: string
+        description: 소속 조직코드 검색
+      - name: jobGrade
+        in: query
+        schema:
+          type: string
+        description: 직급 검색
+      - name: employmentStatus
+        in: query
+        schema:
+          $ref: '#/components/schemas/EmploymentStatus'
+      - name: roleCode
+        in: query
+        schema:
+          $ref: '#/components/schemas/RoleCode'
+      - name: systemUseYn
+        in: query
+        schema:
+          $ref: '#/components/schemas/Yn'
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: filter
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: 사용자 검색 결과
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/UserPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /users/{userId}/usage:
+    patch:
+      tags:
+      - users
+      operationId: updateUserUsage
+      summary: 사용자 사용여부 변경
+      x-related-requirements:
+      - REQ-002
+      - REQ-013
+      - REQ-014
+      - REQ-021
+      x-related-fr:
+      - FR-002
+      - FR-013
+      x-business-rules:
+      - KORUS 원천 필드는 직접 수정하지 않는다.
+      - 로컬 user_account의 system_use_yn과 account_status만 변경한다.
+      - 권한 있는 관리자만 사용여부를 변경할 수 있다.
+      x-side-effects:
+      - user_account의 system_use_yn, account_status, updated_at을 저장한다.
+      - 관리자 변경 작업을 request_id와 함께 구조화 로그로 기록한다.
+      x-state-transitions:
+      - ACTIVE -> DISABLED
+      - DISABLED -> ACTIVE
+      x-required-tests:
+      - KORUS snapshot 필드 불변 검증 테스트
+      - 비권한 사용자 403 테스트
+      - 변경 후 사용자 목록 재조회 테스트
+      - 'happy: verify updateUserUsage contract'
+      - 'auth: verify updateUserUsage contract'
+      - 'validation: verify updateUserUsage contract'
+      - 'business: verify updateUserUsage contract'
+      - 'side-effect: verify updateUserUsage contract'
+      parameters:
+      - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUsageUpdateRequest'
+      responses:
+        '200':
+          description: 사용자 사용여부 변경 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/UserSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /organizations:
+    get:
+      tags:
+      - organizations
+      operationId: listOrganizations
+      summary: 조직 목록
+      x-related-requirements:
+      - REQ-003
+      - REQ-013
+      - REQ-021
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
+      - $ref: '#/components/parameters/Sort'
+      - name: organizationCode
+        in: query
+        schema:
+          type: string
+      - name: organizationName
+        in: query
+        schema:
+          type: string
+      - name: organizationType
+        in: query
+        schema:
+          $ref: '#/components/schemas/OrganizationType'
+      - name: effectiveDate
+        in: query
+        schema:
+          type: string
+          format: date
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: filter
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: 조직 목록
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/OrganizationPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /organizations/tree:
+    get:
+      tags:
+      - organizations
+      operationId: getOrganizationTree
+      summary: 조직 계층
+      x-related-requirements:
+      - REQ-003
+      - REQ-021
+      parameters:
+      - name: effectiveDate
+        in: query
+        schema:
+          type: string
+          format: date
+      responses:
+        '200':
+          description: 조직 계층
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/OrganizationNode'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /organizations/{organizationCode}/relation:
+    put:
+      tags:
+      - organizations
+      operationId: updateOrganizationRelation
+      summary: 조직 관계 변경
+      x-related-requirements:
+      - REQ-003
+      - REQ-014
+      - REQ-021
+      x-related-fr:
+      - FR-003
+      x-business-rules:
+      - 조직 관계의 적용 시작일과 종료일은 겹칠 수 없다.
+      - 종료일은 시작일보다 빠를 수 없다.
+      - 기존 상위조직 관계 이력은 보존한다.
+      x-side-effects:
+      - organization의 parent_organization_code와 적용기간 정보를 저장한다.
+      - 이전 관계를 ENDED 상태로 보존하고 새 관계 적용 정보를 기록한다.
+      - 관리자 변경 작업을 request_id와 함께 구조화 로그로 기록한다.
+      x-state-transitions:
+      - ACTIVE -> ENDED
+      - 신규 관계 없음 -> ACTIVE
+      x-required-tests:
+      - 기간 overlap 400 또는 409 검증 테스트
+      - 관계 변경 후 계층 재조회 테스트
+      - 'happy: verify updateOrganizationRelation contract'
+      - 'auth: verify updateOrganizationRelation contract'
+      - 'validation: verify updateOrganizationRelation contract'
+      - 'business: verify updateOrganizationRelation contract'
+      - 'side-effect: verify updateOrganizationRelation contract'
+      parameters:
+      - name: organizationCode
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationRelationRequest'
+      responses:
+        '200':
+          description: 조직 관계 변경 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/Organization'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /roles:
+    get:
+      tags:
+      - roles
+      operationId: listRoles
+      summary: 역할 목록
+      x-related-requirements:
+      - REQ-004
+      - REQ-011
+      - REQ-021
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
+      - $ref: '#/components/parameters/Sort'
+      - name: roleCode
+        in: query
+        schema:
+          $ref: '#/components/schemas/RoleCode'
+      - name: useYn
+        in: query
+        schema:
+          $ref: '#/components/schemas/Yn'
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: filter
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: 역할 목록
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/RolePage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+    post:
+      tags:
+      - roles
+      operationId: createRole
+      summary: 역할 등록
+      x-related-requirements:
+      - REQ-004
+      - REQ-011
+      - REQ-014
+      - REQ-021
+      x-business-rules:
+      - 역할코드는 R01~R09 체계와 중복 금지 규칙을 따른다.
+      - 역할 목적, 부여 기준, 데이터 범위 기본값을 함께 관리한다.
+      - 역할명 변경 가능성과 별개로 role_code는 안정 식별자로 보존한다.
+      x-side-effects:
+      - role 레코드를 생성한다.
+      - 관리자 변경 작업을 request_id와 함께 구조화 로그로 기록한다.
+      x-required-tests:
+      - 중복 role_code 409 테스트
+      - role_code와 role_name 구분 저장 테스트
+      - 'happy: verify createRole contract'
+      - 'auth: verify createRole contract'
+      - 'validation: verify createRole contract'
+      - 'business: verify createRole contract'
+      - 'side-effect: verify createRole contract'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleRequest'
+      responses:
+        '201':
+          description: 역할 등록 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/Role'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /roles/{roleCode}:
+    patch:
+      tags:
+      - roles
+      operationId: updateRole
+      summary: 역할 수정
+      x-related-requirements:
+      - REQ-004
+      - REQ-011
+      - REQ-014
+      - REQ-021
+      x-business-rules:
+      - role_code는 변경할 수 없다.
+      - role_name, role_purpose, assignment_criteria, default_data_scope, use_yn만 수정 가능하다.
+      - 비활성 역할은 신규 권한 산정에서 제외한다.
+      x-side-effects:
+      - role의 관리 필드와 updated_at을 저장한다.
+      - 관리자 변경 작업을 request_id와 함께 구조화 로그로 기록한다.
+      x-state-transitions:
+      - ACTIVE -> DISABLED
+      - DISABLED -> ACTIVE
+      x-required-tests:
+      - 역할명 변경 후 role_code 유지 테스트
+      - 비활성 역할 권한 차단 테스트
+      - 'happy: verify updateRole contract'
+      - 'auth: verify updateRole contract'
+      - 'validation: verify updateRole contract'
+      - 'business: verify updateRole contract'
+      - 'side-effect: verify updateRole contract'
+      parameters:
+      - $ref: '#/components/parameters/RoleCodeParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleRequest'
+      responses:
+        '200':
+          description: 역할 수정 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/Role'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /user-roles:
+    get:
+      tags:
+      - user-roles
+      operationId: listUserRoles
+      summary: 사용자 역할 목록
+      x-related-requirements:
+      - REQ-005
+      - REQ-011
+      - REQ-021
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
+      - $ref: '#/components/parameters/Sort'
+      - name: userId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: employeeNo
+        in: query
+        schema:
+          type: string
+      - name: roleCode
+        in: query
+        schema:
+          $ref: '#/components/schemas/RoleCode'
+      - name: roleSource
+        in: query
+        schema:
+          $ref: '#/components/schemas/RoleSource'
+      - name: activeOn
+        in: query
+        schema:
+          type: string
+          format: date
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: filter
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: 사용자 역할 목록
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/UserRolePage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+    post:
+      tags:
+      - user-roles
+      operationId: assignUserRole
+      summary: 사용자 역할 부여
+      x-related-requirements:
+      - REQ-005
+      - REQ-011
+      - REQ-014
+      - REQ-021
+      x-business-rules:
+      - 사용자에게 하나 이상의 역할을 부여할 수 있다.
+      - role_source는 MANUAL 또는 POSITION_BASED로 구분한다.
+      - 유효기간 시작과 종료일을 검증하고 승인자를 기록한다.
+      - 수동 역할은 충돌 시 보직 기반 역할보다 우선한다.
+      x-side-effects:
+      - user_role 레코드를 ACTIVE 상태로 저장한다.
+      - 관리자 변경 작업을 request_id와 함께 구조화 로그로 기록한다.
+      x-state-transitions:
+      - 없음 -> ACTIVE
+      x-required-tests:
+      - 유효기간과 승인자 저장 테스트
+      - 수동 역할 우선 권한 산정 테스트
+      - 'happy: verify assignUserRole contract'
+      - 'auth: verify assignUserRole contract'
+      - 'validation: verify assignUserRole contract'
+      - 'business: verify assignUserRole contract'
+      - 'side-effect: verify assignUserRole contract'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRoleAssignRequest'
+      responses:
+        '201':
+          description: 사용자 역할 부여 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/UserRole'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /user-roles/{userRoleId}/revoke:
+    patch:
+      tags:
+      - user-roles
+      operationId: revokeUserRole
+      summary: 사용자 역할 회수
+      x-related-requirements:
+      - REQ-005
+      - REQ-014
+      - REQ-021
+      x-business-rules:
+      - 회수 대상 역할은 존재해야 하며 이미 회수된 역할은 중복 회수할 수 없다.
+      - 회수 후에도 역할 부여 이력, 승인자, 유효기간은 보존한다.
+      x-side-effects:
+      - user_role.assignment_status를 REVOKED로 변경한다.
+      - 관리자 변경 작업을 request_id와 함께 구조화 로그로 기록한다.
+      x-state-transitions:
+      - ACTIVE -> REVOKED
+      x-required-tests:
+      - 회수 후 재조회에서 REVOKED 표시 테스트
+      - 중복 회수 409 테스트
+      - 'happy: verify revokeUserRole contract'
+      - 'auth: verify revokeUserRole contract'
+      - 'validation: verify revokeUserRole contract'
+      - 'business: verify revokeUserRole contract'
+      - 'side-effect: verify revokeUserRole contract'
+      parameters:
+      - name: userRoleId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevokeRequest'
+      responses:
+        '200':
+          description: 사용자 역할 회수 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/UserRole'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /menus:
+    get:
+      tags:
+      - menus
+      operationId: listMenus
+      summary: 메뉴 목록
+      x-related-requirements:
+      - REQ-007
+      - REQ-008
+      - REQ-021
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
+      - $ref: '#/components/parameters/Sort'
+      - name: menuName
+        in: query
+        schema:
+          type: string
+      - name: menuLevel
+        in: query
+        schema:
+          $ref: '#/components/schemas/MenuLevel'
+      - name: useYn
+        in: query
+        schema:
+          $ref: '#/components/schemas/Yn'
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: filter
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: 메뉴 목록
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/MenuPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+    post:
+      tags:
+      - menus
+      operationId: createMenu
+      summary: 메뉴 등록
+      x-related-requirements:
+      - REQ-007
+      - REQ-008
+      - REQ-014
+      - REQ-021
+      x-business-rules:
+      - 메뉴는 대메뉴·중메뉴·소메뉴 계층과 표시순서를 가져야 한다.
+      - leaf 메뉴는 화면ID와 URL을 연결할 수 있다.
+      - parent cycle은 허용하지 않는다.
+      x-side-effects:
+      - menu 레코드를 생성한다.
+      - 관리자 변경 작업을 request_id와 함께 구조화 로그로 기록한다.
+      x-required-tests:
+      - parent cycle 금지 테스트
+      - leaf 화면ID와 URL 저장 테스트
+      - 'happy: verify createMenu contract'
+      - 'auth: verify createMenu contract'
+      - 'validation: verify createMenu contract'
+      - 'business: verify createMenu contract'
+      - 'side-effect: verify createMenu contract'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MenuRequest'
+      responses:
+        '201':
+          description: 메뉴 등록 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/Menu'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /menus/tree:
+    get:
+      tags:
+      - menus
+      operationId: getMenuTree
+      summary: 메뉴 계층
+      x-related-requirements:
+      - REQ-006
+      - REQ-007
+      - REQ-012
+      - REQ-021
+      - REQ-023
+      parameters:
+      - name: targetRoleCode
+        in: query
+        schema:
+          $ref: '#/components/schemas/RoleCode'
+        description: 권한 적용 메뉴 확인 대상 역할
+      responses:
+        '200':
+          description: 메뉴 계층
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/MenuNode'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /menus/{menuId}:
+    patch:
+      tags:
+      - menus
+      operationId: updateMenu
+      summary: 메뉴 정보 수정
+      x-related-requirements:
+      - REQ-007
+      - REQ-008
+      - REQ-014
+      - REQ-021
+      x-business-rules:
+      - 메뉴명, 화면ID, URL, 아이콘, 업무구분, 설명을 관리한다.
+      - 사용중지 메뉴는 화면 미노출과 서버 접근 차단 대상이다.
+      - parent 변경은 cycle과 동일 계층 순서 규칙을 만족해야 한다.
+      x-side-effects:
+      - menu 레코드의 실행정보 또는 계층 정보를 저장한다.
+      - 관리자 변경 작업을 request_id와 함께 구조화 로그로 기록한다.
+      x-state-transitions:
+      - ACTIVE -> DISABLED
+      - DISABLED -> ACTIVE
+      x-required-tests:
+      - 메뉴 정보 변경 후 메뉴 계층 재조회 테스트
+      - 사용중지 메뉴 접근 차단 테스트
+      - 'happy: verify updateMenu contract'
+      - 'auth: verify updateMenu contract'
+      - 'validation: verify updateMenu contract'
+      - 'business: verify updateMenu contract'
+      - 'side-effect: verify updateMenu contract'
+      parameters:
+      - $ref: '#/components/parameters/MenuId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MenuRequest'
+      responses:
+        '200':
+          description: 메뉴 정보 수정 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/Menu'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /menus/reorder:
+    patch:
+      tags:
+      - menus
+      operationId: reorderMenus
+      summary: 메뉴 순서 재정렬
+      x-related-requirements:
+      - REQ-007
+      - REQ-014
+      - REQ-021
+      x-business-rules:
+      - 동일 parent 내 표시순서를 중복 없이 재정렬한다.
+      - 존재하지 않거나 비활성화된 parent에 대한 재정렬은 거부한다.
+      x-side-effects:
+      - 대상 menu 행들의 display_order와 updated_at을 하나의 transaction으로 저장한다.
+      - 관리자 변경 작업을 request_id와 함께 구조화 로그로 기록한다.
+      x-required-tests:
+      - 중복 표시순서 재정렬 후 일관 순서 재조회 테스트
+      - transaction 실패 시 부분 저장 없음 테스트
+      - 'happy: verify reorderMenus contract'
+      - 'auth: verify reorderMenus contract'
+      - 'validation: verify reorderMenus contract'
+      - 'business: verify reorderMenus contract'
+      - 'side-effect: verify reorderMenus contract'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MenuReorderRequest'
+      responses:
+        '200':
+          description: 메뉴 순서 재정렬 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/EmptyApiResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /menu-permissions:
+    get:
+      tags:
+      - menu-permissions
+      operationId: listMenuPermissions
+      summary: 메뉴 권한 목록
+      x-related-requirements:
+      - REQ-006
+      - REQ-012
+      - REQ-021
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
+      - $ref: '#/components/parameters/Sort'
+      - name: targetType
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/PermissionTargetType'
+      - name: targetId
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: filter
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: 메뉴 권한 목록
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/MenuPermissionPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+    put:
+      tags:
+      - menu-permissions
+      operationId: saveMenuPermissions
+      summary: 메뉴 권한 저장
+      x-related-requirements:
+      - REQ-006
+      - REQ-012
+      - REQ-014
+      - REQ-021
+      x-related-fr:
+      - FR-006
+      x-business-rules:
+      - 역할·조직·사용자 단위로 대메뉴·중메뉴·화면 접근 허용 여부를 저장한다.
+      - 저장값은 사용자 메뉴 노출과 서버 접근통제에 동일하게 적용한다.
+      - 기능 권한 관리 화면은 1차 범위에서 만들지 않으며 메뉴 접근 권한 중심으로 처리한다.
+      x-side-effects:
+      - menu_permission 레코드를 upsert한다.
+      - 권한 캐시 또는 메뉴 visibility 계산 기준을 갱신한다.
+      - 관리자 변경 작업을 request_id와 함께 구조화 로그로 기록한다.
+      x-state-transitions:
+      - DENIED -> ALLOWED
+      - ALLOWED -> DENIED
+      x-required-tests:
+      - R09 9개 화면 접근 권한 저장과 재조회 테스트
+      - UI 메뉴 숨김과 직접 API 403 일치 테스트
+      - 'happy: verify saveMenuPermissions contract'
+      - 'auth: verify saveMenuPermissions contract'
+      - 'validation: verify saveMenuPermissions contract'
+      - 'business: verify saveMenuPermissions contract'
+      - 'side-effect: verify saveMenuPermissions contract'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MenuPermissionSaveRequest'
+      responses:
+        '200':
+          description: 메뉴 권한 저장 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/EmptyApiResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /code-groups:
+    get:
+      tags:
+      - code-groups
+      operationId: listCodeGroups
+      summary: 코드그룹 목록
+      x-related-requirements:
+      - REQ-009
+      - REQ-021
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
+      - $ref: '#/components/parameters/Sort'
+      - name: groupId
+        in: query
+        schema:
+          type: string
+      - name: groupName
+        in: query
+        schema:
+          type: string
+      - name: managingDepartment
+        in: query
+        schema:
+          type: string
+      - name: useYn
+        in: query
+        schema:
+          $ref: '#/components/schemas/Yn'
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: filter
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: 코드그룹 목록
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/CodeGroupPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+    post:
+      tags:
+      - code-groups
+      operationId: createCodeGroup
+      summary: 코드그룹 등록
+      x-related-requirements:
+      - REQ-009
+      - REQ-014
+      - REQ-021
+      x-business-rules:
+      - groupID, 명칭, 설명, 관리부서를 등록한다.
+      - groupID는 중복될 수 없다.
+      - 사용 중인 코드그룹은 물리삭제보다 사용중지를 우선한다.
+      x-side-effects:
+      - code_group 레코드를 생성한다.
+      - 관리자 변경 작업을 request_id와 함께 구조화 로그로 기록한다.
+      x-required-tests:
+      - 중복 groupID 409 테스트
+      - 상세코드 목록 이동 연결 검증 테스트
+      - 'happy: verify createCodeGroup contract'
+      - 'auth: verify createCodeGroup contract'
+      - 'validation: verify createCodeGroup contract'
+      - 'business: verify createCodeGroup contract'
+      - 'side-effect: verify createCodeGroup contract'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CodeGroupRequest'
+      responses:
+        '201':
+          description: 코드그룹 등록 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/CodeGroup'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /code-groups/{groupId}:
+    patch:
+      tags:
+      - code-groups
+      operationId: updateCodeGroup
+      summary: 코드그룹 수정
+      x-related-requirements:
+      - REQ-009
+      - REQ-014
+      - REQ-021
+      x-business-rules:
+      - 명칭, 설명, 관리부서, 사용여부를 수정한다.
+      - 사용중지된 코드그룹은 신규 선택값 제공에서 제외한다.
+      x-side-effects:
+      - code_group의 관리 필드와 updated_at을 저장한다.
+      - 관리자 변경 작업을 request_id와 함께 구조화 로그로 기록한다.
+      x-state-transitions:
+      - ACTIVE -> DISABLED
+      - DISABLED -> ACTIVE
+      x-required-tests:
+      - 사용중지 코드그룹 목록 필터 테스트
+      - 'happy: verify updateCodeGroup contract'
+      - 'auth: verify updateCodeGroup contract'
+      - 'validation: verify updateCodeGroup contract'
+      - 'business: verify updateCodeGroup contract'
+      - 'side-effect: verify updateCodeGroup contract'
+      parameters:
+      - $ref: '#/components/parameters/GroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CodeGroupRequest'
+      responses:
+        '200':
+          description: 코드그룹 수정 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/CodeGroup'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /detail-codes:
+    get:
+      tags:
+      - detail-codes
+      operationId: listDetailCodes
+      summary: 상세코드 목록
+      x-related-requirements:
+      - REQ-010
+      - REQ-021
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
+      - $ref: '#/components/parameters/Sort'
+      - name: groupId
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: codeValue
+        in: query
+        schema:
+          type: string
+      - name: codeName
+        in: query
+        schema:
+          type: string
+      - name: useYn
+        in: query
+        schema:
+          $ref: '#/components/schemas/Yn'
+      - name: effectiveDate
+        in: query
+        schema:
+          type: string
+          format: date
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: filter
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: 상세코드 목록
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/DetailCodePage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+    post:
+      tags:
+      - detail-codes
+      operationId: createDetailCode
+      summary: 상세코드 등록
+      x-related-requirements:
+      - REQ-010
+      - REQ-014
+      - REQ-016
+      - REQ-021
+      x-business-rules:
+      - 코드값, 코드명, 상위코드, 정렬순서, 추가속성을 관리한다.
+      - 같은 코드그룹 내 code_value는 중복될 수 없다.
+      - 상위코드는 같은 코드그룹에 존재해야 한다.
+      - 유효기간 종료일은 시작일보다 빠를 수 없다.
+      x-side-effects:
+      - detail_code 레코드를 생성한다.
+      - 화면 선택값과 연계 코드 매핑용 기준 데이터를 갱신한다.
+      - 관리자 변경 작업을 request_id와 함께 구조화 로그로 기록한다.
+      x-required-tests:
+      - 같은 그룹 내 중복 code_value 409 테스트
+      - 다른 그룹 parent code 거부 테스트
+      - 'happy: verify createDetailCode contract'
+      - 'auth: verify createDetailCode contract'
+      - 'validation: verify createDetailCode contract'
+      - 'business: verify createDetailCode contract'
+      - 'side-effect: verify createDetailCode contract'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DetailCodeRequest'
+      responses:
+        '201':
+          description: 상세코드 등록 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/DetailCode'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /detail-codes/{detailCodeId}:
+    patch:
+      tags:
+      - detail-codes
+      operationId: updateDetailCode
+      summary: 상세코드 수정
+      x-related-requirements:
+      - REQ-010
+      - REQ-014
+      - REQ-016
+      - REQ-021
+      x-business-rules:
+      - 코드명, 상위코드, 정렬순서, 추가속성, 사용여부, 유효기간을 수정한다.
+      - 사용중지 또는 기간 밖 상세코드는 화면 선택값에서 제외한다.
+      - 상위코드는 같은 코드그룹에 존재해야 한다.
+      x-side-effects:
+      - detail_code의 관리 필드와 updated_at을 저장한다.
+      - 관리자 변경 작업을 request_id와 함께 구조화 로그로 기록한다.
+      x-state-transitions:
+      - ACTIVE -> DISABLED
+      - DISABLED -> ACTIVE
+      x-required-tests:
+      - 사용중지 상세코드 선택값 제외 테스트
+      - 유효기간 검증 실패 테스트
+      - 'happy: verify updateDetailCode contract'
+      - 'auth: verify updateDetailCode contract'
+      - 'validation: verify updateDetailCode contract'
+      - 'business: verify updateDetailCode contract'
+      - 'side-effect: verify updateDetailCode contract'
+      parameters:
+      - name: detailCodeId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DetailCodeRequest'
+      responses:
+        '200':
+          description: 상세코드 수정 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/DetailCode'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+components:
+  securitySchemes:
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: JSESSIONID
+      description: HttpOnly SameSite=Lax session cookie
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+      description: 0 기반 페이지 번호
+    Size:
+      name: size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: 페이지 크기
+    Sort:
+      name: sort
+      in: query
+      schema:
+        type: string
+      description: 정렬 필드와 방향 예시 `updatedAt,desc`
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    RoleCodeParam:
+      name: roleCode
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/RoleCode'
+    MenuId:
+      name: menuId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    GroupId:
+      name: groupId
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: 요청 검증 실패
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorApiResponse'
+    Unauthorized:
+      description: 인증되지 않음
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorApiResponse'
+    Forbidden:
+      description: 권한 없음
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorApiResponse'
+    NotFound:
+      description: 대상 없음
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorApiResponse'
+    Conflict:
+      description: 비즈니스 충돌
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorApiResponse'
+  schemas:
+    ApiResponse:
+      type: object
+      required:
+      - success
+      - message
+      - data
+      - requestId
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          nullable: true
+        error:
+          nullable: true
+          $ref: '#/components/schemas/ApiError'
+        requestId:
+          type: string
+    EmptyApiResponse:
+      allOf:
+      - $ref: '#/components/schemas/ApiResponse'
+      - type: object
+        properties:
+          data:
+            nullable: true
+            example: null
+    ErrorApiResponse:
+      allOf:
+      - $ref: '#/components/schemas/ApiResponse'
+      - type: object
+        required:
+        - success
+        - message
+        - error
+        - requestId
+        properties:
+          success:
+            type: boolean
+            enum:
+            - false
+          data:
+            nullable: true
+            example: null
+          error:
+            $ref: '#/components/schemas/ApiError'
+    ApiError:
+      type: object
+      required:
+      - code
+      - message
+      properties:
+        code:
+          type: string
+          description: 안정적인 오류 코드
+        message:
+          type: string
+        fieldErrors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+        details:
+          type: object
+          additionalProperties: true
+    PageMeta:
+      type: object
+      required:
+      - page
+      - size
+      - totalElements
+      - totalPages
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+    HealthStatus:
+      type: object
+      required:
+      - status
+      properties:
+        status:
+          type: string
+          enum:
+          - UP
+    Yn:
+      type: string
+      enum:
+      - Y
+      - N
+    EmploymentStatus:
+      type: string
+      enum:
+      - ACTIVE
+      - RETIRED
+      - LEAVE
+    AccountStatus:
+      type: string
+      enum:
+      - ACTIVE
+      - DISABLED
+      - LOCKED
+    RoleCode:
+      type: string
+      enum:
+      - R01
+      - R02
+      - R03
+      - R04
+      - R05
+      - R06
+      - R07
+      - R08
+      - R09
+    RoleSource:
+      type: string
+      enum:
+      - MANUAL
+      - POSITION_BASED
+    AssignmentStatus:
+      type: string
+      enum:
+      - ACTIVE
+      - REVOKED
+      - EXPIRED
+    OrganizationType:
+      type: string
+      enum:
+      - UNIVERSITY
+      - GRADUATE_SCHOOL
+      - COLLEGE
+      - DEPARTMENT
+      - OFFICE
+    MenuLevel:
+      type: string
+      enum:
+      - TOP
+      - MIDDLE
+      - LEAF
+    PermissionTargetType:
+      type: string
+      enum:
+      - ROLE
+      - ORGANIZATION
+      - USER
+    DataScope:
+      type: string
+      enum:
+      - SELF
+      - DEPARTMENT
+      - COLLEGE
+      - UNIVERSITY
+      - ALL
+    LoginRequest:
+      type: object
+      required:
+      - loginId
+      - password
+      properties:
+        loginId:
+          type: string
+          example: admin
+        password:
+          type: string
+          format: password
+          example: admin
+    CurrentUser:
+      type: object
+      required:
+      - userId
+      - loginId
+      - displayName
+      - roleCodes
+      properties:
+        userId:
+          type: string
+          format: uuid
+        loginId:
+          type: string
+        displayName:
+          type: string
+        roleCodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoleCode'
+    UserSummary:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        employeeNo:
+          type: string
+        loginId:
+          type: string
+        displayName:
+          type: string
+        organizationCode:
+          type: string
+        organizationName:
+          type: string
+        jobGrade:
+          type: string
+        employmentStatus:
+          $ref: '#/components/schemas/EmploymentStatus'
+        positionName:
+          type: string
+          nullable: true
+        retirementDate:
+          type: string
+          format: date
+          nullable: true
+        lastSyncedAt:
+          type: string
+          format: date-time
+        roleCodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoleCode'
+        systemUseYn:
+          $ref: '#/components/schemas/Yn'
+        accountStatus:
+          $ref: '#/components/schemas/AccountStatus'
+    UserPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserSummary'
+        page:
+          $ref: '#/components/schemas/PageMeta'
+    UserUsageUpdateRequest:
+      type: object
+      required:
+      - systemUseYn
+      - accountStatus
+      - reason
+      properties:
+        systemUseYn:
+          $ref: '#/components/schemas/Yn'
+        accountStatus:
+          $ref: '#/components/schemas/AccountStatus'
+        reason:
+          type: string
+    Organization:
+      type: object
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        organizationCode:
+          type: string
+        organizationName:
+          type: string
+        organizationType:
+          $ref: '#/components/schemas/OrganizationType'
+        parentOrganizationCode:
+          type: string
+          nullable: true
+        effectiveStartDate:
+          type: string
+          format: date
+        effectiveEndDate:
+          type: string
+          format: date
+          nullable: true
+        useYn:
+          $ref: '#/components/schemas/Yn'
+    OrganizationPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Organization'
+        page:
+          $ref: '#/components/schemas/PageMeta'
+    OrganizationNode:
+      allOf:
+      - $ref: '#/components/schemas/Organization'
+      - type: object
+        properties:
+          children:
+            type: array
+            items:
+              $ref: '#/components/schemas/OrganizationNode'
+    OrganizationRelationRequest:
+      type: object
+      required:
+      - parentOrganizationCode
+      - effectiveStartDate
+      - reason
+      properties:
+        parentOrganizationCode:
+          type: string
+          nullable: true
+        effectiveStartDate:
+          type: string
+          format: date
+        effectiveEndDate:
+          type: string
+          format: date
+          nullable: true
+        reason:
+          type: string
+    Role:
+      type: object
+      properties:
+        roleCode:
+          $ref: '#/components/schemas/RoleCode'
+        roleName:
+          type: string
+        rolePurpose:
+          type: string
+        assignmentCriteria:
+          type: string
+          nullable: true
+        defaultDataScope:
+          $ref: '#/components/schemas/DataScope'
+        useYn:
+          $ref: '#/components/schemas/Yn'
+    RolePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+        page:
+          $ref: '#/components/schemas/PageMeta'
+    RoleRequest:
+      type: object
+      required:
+      - roleCode
+      - roleName
+      - rolePurpose
+      - defaultDataScope
+      - useYn
+      properties:
+        roleCode:
+          $ref: '#/components/schemas/RoleCode'
+        roleName:
+          type: string
+        rolePurpose:
+          type: string
+        assignmentCriteria:
+          type: string
+          nullable: true
+        defaultDataScope:
+          $ref: '#/components/schemas/DataScope'
+        useYn:
+          $ref: '#/components/schemas/Yn'
+        reason:
+          type: string
+    UserRole:
+      type: object
+      properties:
+        userRoleId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        roleCode:
+          $ref: '#/components/schemas/RoleCode'
+        roleSource:
+          $ref: '#/components/schemas/RoleSource'
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
+          nullable: true
+        approvedByUserId:
+          type: string
+          format: uuid
+          nullable: true
+        assignmentStatus:
+          $ref: '#/components/schemas/AssignmentStatus'
+    UserRolePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserRole'
+        page:
+          $ref: '#/components/schemas/PageMeta'
+    UserRoleAssignRequest:
+      type: object
+      required:
+      - userId
+      - roleCode
+      - roleSource
+      - validFrom
+      - reason
+      properties:
+        userId:
+          type: string
+          format: uuid
+        roleCode:
+          $ref: '#/components/schemas/RoleCode'
+        roleSource:
+          $ref: '#/components/schemas/RoleSource'
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
+          nullable: true
+        approvedByUserId:
+          type: string
+          format: uuid
+          nullable: true
+        reason:
+          type: string
+    RevokeRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+    Menu:
+      type: object
+      properties:
+        menuId:
+          type: string
+          format: uuid
+        parentMenuId:
+          type: string
+          format: uuid
+          nullable: true
+        menuLevel:
+          $ref: '#/components/schemas/MenuLevel'
+        displayOrder:
+          type: integer
+        menuName:
+          type: string
+        screenId:
+          type: string
+          nullable: true
+        urlPath:
+          type: string
+          nullable: true
+        iconName:
+          type: string
+          nullable: true
+        businessCategory:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        useYn:
+          $ref: '#/components/schemas/Yn'
+    MenuPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Menu'
+        page:
+          $ref: '#/components/schemas/PageMeta'
+    MenuNode:
+      allOf:
+      - $ref: '#/components/schemas/Menu'
+      - type: object
+        properties:
+          accessAllowedYn:
+            $ref: '#/components/schemas/Yn'
+          children:
+            type: array
+            items:
+              $ref: '#/components/schemas/MenuNode'
+    MenuRequest:
+      type: object
+      required:
+      - menuLevel
+      - displayOrder
+      - menuName
+      - useYn
+      - reason
+      properties:
+        parentMenuId:
+          type: string
+          format: uuid
+          nullable: true
+        menuLevel:
+          $ref: '#/components/schemas/MenuLevel'
+        displayOrder:
+          type: integer
+        menuName:
+          type: string
+        screenId:
+          type: string
+          nullable: true
+        urlPath:
+          type: string
+          nullable: true
+        iconName:
+          type: string
+          nullable: true
+        businessCategory:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        useYn:
+          $ref: '#/components/schemas/Yn'
+        reason:
+          type: string
+    MenuReorderRequest:
+      type: object
+      required:
+      - parentMenuId
+      - orders
+      - reason
+      properties:
+        parentMenuId:
+          type: string
+          format: uuid
+          nullable: true
+        orders:
+          type: array
+          items:
+            type: object
+            required:
+            - menuId
+            - displayOrder
+            properties:
+              menuId:
+                type: string
+                format: uuid
+              displayOrder:
+                type: integer
+        reason:
+          type: string
+    MenuPermission:
+      type: object
+      properties:
+        menuPermissionId:
+          type: string
+          format: uuid
+        targetType:
+          $ref: '#/components/schemas/PermissionTargetType'
+        targetId:
+          type: string
+        menuId:
+          type: string
+          format: uuid
+        accessAllowedYn:
+          $ref: '#/components/schemas/Yn'
+    MenuPermissionPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MenuPermission'
+        page:
+          $ref: '#/components/schemas/PageMeta'
+    MenuPermissionSaveRequest:
+      type: object
+      required:
+      - targetType
+      - targetId
+      - permissions
+      - reason
+      properties:
+        targetType:
+          $ref: '#/components/schemas/PermissionTargetType'
+        targetId:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: object
+            required:
+            - menuId
+            - accessAllowedYn
+            properties:
+              menuId:
+                type: string
+                format: uuid
+              accessAllowedYn:
+                $ref: '#/components/schemas/Yn'
+        reason:
+          type: string
+    CodeGroup:
+      type: object
+      properties:
+        groupId:
+          type: string
+        groupName:
+          type: string
+        description:
+          type: string
+          nullable: true
+        managingDepartment:
+          type: string
+          nullable: true
+        useYn:
+          $ref: '#/components/schemas/Yn'
+    CodeGroupPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CodeGroup'
+        page:
+          $ref: '#/components/schemas/PageMeta'
+    CodeGroupRequest:
+      type: object
+      required:
+      - groupName
+      - useYn
+      - reason
+      properties:
+        groupId:
+          type: string
+        groupName:
+          type: string
+        description:
+          type: string
+          nullable: true
+        managingDepartment:
+          type: string
+          nullable: true
+        useYn:
+          $ref: '#/components/schemas/Yn'
+        reason:
+          type: string
+    DetailCode:
+      type: object
+      properties:
+        detailCodeId:
+          type: string
+          format: uuid
+        groupId:
+          type: string
+        codeValue:
+          type: string
+        codeName:
+          type: string
+        parentDetailCodeId:
+          type: string
+          format: uuid
+          nullable: true
+        sortOrder:
+          type: integer
+        additionalAttributes:
+          type: object
+          nullable: true
+          additionalProperties: true
+        useYn:
+          $ref: '#/components/schemas/Yn'
+        validFrom:
+          type: string
+          format: date
+          nullable: true
+        validTo:
+          type: string
+          format: date
+          nullable: true
+    DetailCodePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DetailCode'
+        page:
+          $ref: '#/components/schemas/PageMeta'
+    DetailCodeRequest:
+      type: object
+      required:
+      - groupId
+      - codeValue
+      - codeName
+      - sortOrder
+      - useYn
+      - reason
+      properties:
+        groupId:
+          type: string
+        codeValue:
+          type: string
+        codeName:
+          type: string
+        parentDetailCodeId:
+          type: string
+          format: uuid
+          nullable: true
+        sortOrder:
+          type: integer
+        additionalAttributes:
+          type: object
+          nullable: true
+          additionalProperties: true
+        useYn:
+          $ref: '#/components/schemas/Yn'
+        validFrom:
+          type: string
+          format: date
+          nullable: true
+        validTo:
+          type: string
+          format: date
+          nullable: true
+        reason:
+          type: string

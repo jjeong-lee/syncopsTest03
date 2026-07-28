@@ -1,0 +1,15 @@
+{
+  "decision_status": "clarification_required",
+  "execution_model": "imperative",
+  "persistence_technology": "mybatis",
+  "access_mode": "blocking",
+  "selection_source": "explicit",
+  "blocking_priority": [
+    "mybatis",
+    "jpa",
+    "spring-jdbc"
+  ],
+  "conflicts": [
+    "MULTIPLE_EXECUTION_MODELS"
+  ]
+}
