@@ -1,0 +1,2978 @@
+openapi: 3.0.3
+info:
+  title: 교수업적평가 공통기능 1차 API
+  version: 0.1.0
+  description: REQ-001~REQ-028 Requirement Registry 기반 HTTP API 계약. 파일 upload/download API는 REQ-011 제외 범위이므로 1차 계약에 포함하지 않는다.
+x-shared-contract-reference:
+  technology_stack:
+    Frontend: React + TypeScript + Vite
+    Backend: Java 17 + Spring Boot
+    Database: PostgreSQL
+    Infrastructure: Docker Compose
+  version_bom:
+    spring_boot: 3.3.x
+    node: 20.x
+    vite: 5.x
+    react: 18.x
+    postgres: 16.x
+  required_outputs:
+    backend_dir: backend
+    frontend_dir: frontend
+    compose_file: infra/docker-compose.yml
+    health_endpoint: /api/health
+  execution_persistence_contract:
+    decision_status: resolved
+    execution_model: imperative
+    persistence_technology: mybatis
+    access_mode: blocking
+x-uncovered-requirements:
+- canonical_id: REQ-011
+  status: out-of-scope
+  evidence: 제외 범위 기능은 업무 API operation으로 매핑하지 않고 ScopeBoundaryTest 대상에 둔다.
+- canonical_id: REQ-013
+  status: data-constraint
+  evidence: 변경 추적은 change_history table side-effect로 기록되며 별도 조회 operation은 만들지 않는다.
+- canonical_id: REQ-018
+  status: screen-only
+  evidence: 관리 화면 공통 UI 상태는 ui-design.md 화면 상태로 검증하고 API operation은 상태 데이터만 반환한다.
+- canonical_id: REQ-020
+  status: non-functional
+  evidence: 상대경로 /api/...와 기술스택은 x-shared-contract-reference 및 frontend 검증 대상이다.
+- canonical_id: REQ-023
+  status: data-constraint
+  evidence: 최소 데이터 도메인은 data-model.md의 table contract로 충족하며 단일 CRUD operation으로 대표하지 않는다.
+- canonical_id: REQ-025
+  status: screen-only
+  evidence: LOGIN 및 9개 화면 목록은 ui-design.md screen inventory에서 추적한다.
+- canonical_id: REQ-026
+  status: non-functional
+  evidence: Version BOM과 required_outputs는 x-shared-contract-reference에 보존되고 operation mapping 대상은 아니다.
+- canonical_id: REQ-027
+  status: non-functional
+  evidence: imperative/blocking/MyBatis 선택은 plan.md marker와 backend 구현 제약이며 HTTP operation 하나로 대표하지 않는다.
+servers:
+- url: /
+  description: frontend nginx reverse proxy relative base
+paths:
+  /api/health:
+    get:
+      operationId: getHealth
+      summary: 서비스 상태
+      tags:
+      - foundation
+      x-related-requirements:
+      - REQ-024
+      - REQ-028
+      responses:
+        '200':
+          description: backend health ok
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        status:
+                          type: string
+                          enum:
+                          - UP
+        '500':
+          description: backend health error
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /api/auth/login:
+    post:
+      operationId: login
+      summary: 관리자 로그인
+      tags:
+      - auth
+      x-related-requirements:
+      - REQ-021
+      - REQ-022
+      - REQ-024
+      x-business-rules:
+      - 아이디와 비밀번호는 모두 필수다
+      - seed 관리자 admin/admin은 R09 역할 세션을 생성해야 한다
+      - 잠긴 계정은 세션을 생성할 수 없다
+      x-side-effects:
+      - sessions row를 ACTIVE 상태로 저장한다
+      - HttpOnly SameSite=Lax session cookie를 발급한다
+      - users.updated_at은 로그인 성공으로 변경하지 않는다
+      x-state-transitions:
+      - no session -> ACTIVE session
+      x-required-tests:
+      - 'happy: admin/admin으로 로그인한다 -> sessions.status=ACTIVE row와 roles R09가 현재 사용자 조회에 보인다'
+      - 'auth: 이미 권한 없는 익명 요청이라는 개념은 로그인 예외다 -> 잘못된 password는 401 응답을 반환한다'
+      - 'validation: loginId가 빈 문자열이다 -> ApiError.fieldErrors에 loginId 오류가 포함된다'
+      - 'business: account_status=LOCKED 계정으로 로그인한다 -> sessions row가 생성되지 않는다'
+      - 'side-effect: 로그인 성공 후 sessions row가 존재한다 -> session_id가 follow-up GET /api/auth/me에서 읽힌다'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: login success
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/CurrentUser'
+        '400':
+          description: validation error
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: invalid credentials
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+  /api/auth/logout:
+    post:
+      operationId: logout
+      summary: 세션 로그아웃
+      tags:
+      - auth
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-022
+      - REQ-024
+      x-business-rules:
+      - 유효한 ACTIVE session만 로그아웃할 수 있다
+      - 로그아웃은 사용자 계정 또는 권한 row를 변경하지 않는다
+      x-side-effects:
+      - sessions.status를 REVOKED로 저장한다
+      - session cookie 만료 헤더를 반환한다
+      x-state-transitions:
+      - ACTIVE session -> REVOKED session
+      x-required-tests:
+      - 'happy: ACTIVE session으로 로그아웃한다 -> sessions.status=REVOKED가 follow-up read에서 보인다'
+      - 'auth: 세션 없는 요청으로 로그아웃한다 -> 401 응답을 반환한다'
+      - 'validation: session cookie가 변조된 값이다 -> ApiError.code=UNAUTHORIZED가 반환된다'
+      - 'business: 이미 REVOKED session으로 로그아웃한다 -> sessions.status가 REVOKED에서 바뀌지 않는다'
+      - 'side-effect: 로그아웃 성공 후 Set-Cookie 만료 헤더가 존재한다 -> cookie Max-Age=0을 읽을 수 있다'
+      responses:
+        '200':
+          description: logout success
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        loggedOut:
+                          type: boolean
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-roles:
+      - authenticated
+  /api/auth/me:
+    get:
+      operationId: getCurrentUser
+      summary: 현재 사용자
+      tags:
+      - auth
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-021
+      - REQ-022
+      - REQ-024
+      responses:
+        '200':
+          description: current user
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/CurrentUser'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-roles:
+      - authenticated
+  /api/menus/current:
+    get:
+      operationId: listCurrentMenus
+      summary: 현재 메뉴 목록
+      tags:
+      - menu
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-005
+      - REQ-010
+      - REQ-012
+      - REQ-021
+      - REQ-022
+      - REQ-024
+      parameters:
+      - &id001
+        $ref: '#/components/parameters/page'
+      - &id002
+        $ref: '#/components/parameters/size'
+      - &id003
+        $ref: '#/components/parameters/sort'
+      - name: level
+        in: query
+        schema:
+          $ref: '#/components/schemas/MenuLevel'
+        required: false
+      - name: parentMenuId
+        in: query
+        schema:
+          type: string
+        required: false
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: filter
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: authorized menus
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/Menu'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: forbidden
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-related-fr:
+      - CMN-FR-007
+      x-roles:
+      - authenticated
+  /api/users:
+    get:
+      operationId: searchUsers
+      summary: 사용자 검색
+      tags:
+      - user
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-001
+      - REQ-015
+      - REQ-016
+      - REQ-022
+      - REQ-024
+      parameters:
+      - *id001
+      - *id002
+      - *id003
+      - name: staffNo
+        in: query
+        schema:
+          type: string
+      - name: staffName
+        in: query
+        schema:
+          type: string
+      - name: organizationCode
+        in: query
+        schema:
+          type: string
+      - name: rankName
+        in: query
+        schema:
+          type: string
+      - name: employmentStatus
+        in: query
+        schema:
+          $ref: '#/components/schemas/EmploymentStatus'
+      - name: roleCode
+        in: query
+        schema:
+          $ref: '#/components/schemas/RoleCode'
+      - name: systemUseYn
+        in: query
+        schema:
+          $ref: '#/components/schemas/YesNo'
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: filter
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: user page
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/UserPage'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: forbidden
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-related-fr:
+      - CMN-FR-001
+      x-roles:
+      - authenticated
+  /api/users/{userId}/administration:
+    patch:
+      operationId: updateUserAdministration
+      summary: 사용자 사용여부 저장
+      tags:
+      - user
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-001
+      - REQ-015
+      - REQ-016
+      - REQ-019
+      - REQ-024
+      x-business-rules:
+      - KORUS 원천 인사 항목은 requestBody에 포함되어도 저장하지 않는다
+      - systemUseYn은 Y 또는 N만 허용한다
+      - 업무 역할 변경은 존재하는 roleCode만 허용한다
+      x-side-effects:
+      - users.system_use_yn을 저장한다
+      - user_roles row를 요청된 업무 역할 목록에 맞게 ACTIVE 또는 REVOKED로 조정한다
+      - change_history에 users 변경 전후 값을 기록한다
+      x-state-transitions:
+      - users.account_status ACTIVE <-> INACTIVE
+      - user_roles ACTIVE -> REVOKED when removed
+      x-required-tests:
+      - 'happy: R09 세션이 유효한 요청을 저장한다 -> users.system_use_yn 값이 follow-up read에서 변경되어 보인다'
+      - 'auth: R01 교원 세션이 같은 요청을 보낸다 -> 403 응답과 ApiError.code=FORBIDDEN을 반환한다'
+      - 'validation: systemUseYn=X -> ApiError.fieldErrors에 해당 field 오류가 포함된다'
+      - 'business: KORUS staffName 수정 요청은 snapshot에 반영되면 안 된다 -> 대상 users row의 기존 상태가 유지된다'
+      - 'side-effect: 저장 성공 후 change_history row가 entity_name=users 값을 가진다 -> history_id가 조회된다'
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+      - &id004
+        name: changeReason
+        in: query
+        required: false
+        schema:
+          type: string
+        description: 변경 추적 사유
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserAdministrationRequest'
+      responses:
+        '200':
+          description: updated user administration
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/User'
+        '400':
+          description: validation error
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: forbidden
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '404':
+          description: not found
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-related-fr:
+      - CMN-FR-001
+      x-roles:
+      - authenticated
+  /api/organizations:
+    get:
+      operationId: listOrganizations
+      summary: 조직 목록
+      tags:
+      - organization
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-002
+      - REQ-015
+      - REQ-024
+      parameters:
+      - *id001
+      - *id002
+      - *id003
+      - name: organizationCode
+        in: query
+        schema:
+          type: string
+      - name: organizationType
+        in: query
+        schema:
+          $ref: '#/components/schemas/OrganizationType'
+      - name: baseDate
+        in: query
+        schema:
+          type: string
+          format: date
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: filter
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: organization page
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/OrganizationPage'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: forbidden
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-related-fr:
+      - CMN-FR-002
+      x-roles:
+      - authenticated
+  /api/organizations/tree:
+    get:
+      operationId: getOrganizationTree
+      summary: 조직 계층
+      tags:
+      - organization
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-002
+      - REQ-024
+      parameters:
+      - name: baseDate
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: rootOrganizationCode
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: organization tree
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/OrganizationNode'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: forbidden
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-related-fr:
+      - CMN-FR-002
+      x-roles:
+      - authenticated
+  /api/organizations/{organizationId}/relationship:
+    put:
+      operationId: saveOrganizationRelationship
+      summary: 조직 관계 저장
+      tags:
+      - organization
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-002
+      - REQ-019
+      - REQ-024
+      x-business-rules:
+      - effectiveStartDate는 effectiveEndDate보다 늦을 수 없다
+      - parentOrganizationId는 organizationId와 같을 수 없다
+      - 기준일별 계층 재현을 위해 기존 관계 이력을 덮어쓰지 않는다
+      x-side-effects:
+      - organizations.parent_organization_id와 적용기간을 저장한다
+      - organizations.status를 적용기간에 맞게 ACTIVE 또는 ENDED로 조정한다
+      - change_history에 조직 관계 변경 전후 값을 기록한다
+      x-state-transitions:
+      - organizations ACTIVE -> ENDED when effectiveEndDate passes
+      - organizations ENDED -> ACTIVE when new active relationship is saved
+      x-required-tests:
+      - 'happy: R09 세션이 유효한 요청을 저장한다 -> organizations.parent_organization_id 값이 follow-up read에서 변경되어 보인다'
+      - 'auth: R01 교원 세션이 같은 요청을 보낸다 -> 403 응답과 ApiError.code=FORBIDDEN을 반환한다'
+      - 'validation: effectiveStartDate가 effectiveEndDate보다 늦다 -> ApiError.fieldErrors에 해당 field 오류가 포함된다'
+      - 'business: parentOrganizationId가 자기 자신이면 저장을 차단한다 -> 대상 organizations row의 기존 상태가 유지된다'
+      - 'side-effect: 저장 성공 후 change_history row가 entity_name=organizations 값을 가진다 -> history_id가 조회된다'
+      parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+      - *id004
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveOrganizationRelationshipRequest'
+      responses:
+        '200':
+          description: saved organization
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/Organization'
+        '400':
+          description: validation error
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: forbidden
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '404':
+          description: not found
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-related-fr:
+      - CMN-FR-002
+      x-roles:
+      - authenticated
+  /api/roles:
+    get:
+      operationId: listRoles
+      summary: 역할 목록
+      tags:
+      - role
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-003
+      - REQ-024
+      parameters:
+      - *id001
+      - *id002
+      - *id003
+      - name: useYn
+        in: query
+        schema:
+          $ref: '#/components/schemas/YesNo'
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: filter
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: role page
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/RolePage'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: forbidden
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-related-fr:
+      - CMN-FR-005
+      x-roles:
+      - authenticated
+  /api/roles/{roleCode}:
+    put:
+      operationId: updateRole
+      summary: 역할 기준 저장
+      tags:
+      - role
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-003
+      - REQ-019
+      - REQ-024
+      x-business-rules:
+      - roleCode는 R01~R09 seed code로 고정되며 변경할 수 없다
+      - roleName은 비어 있을 수 없다
+      - defaultDataScope는 1차 범위에서 기준정보로만 저장한다
+      x-side-effects:
+      - roles.role_name, purpose, grant_criteria, default_data_scope를 저장한다
+      - roles.role_code는 기존 값으로 유지한다
+      - change_history에 roles 변경 전후 값을 기록한다
+      x-required-tests:
+      - 'happy: R09 세션이 유효한 요청을 저장한다 -> roles.role_name 값이 follow-up read에서 변경되어 보인다'
+      - 'auth: R01 교원 세션이 같은 요청을 보낸다 -> 403 응답과 ApiError.code=FORBIDDEN을 반환한다'
+      - 'validation: roleName이 빈 문자열이다 -> ApiError.fieldErrors에 해당 field 오류가 포함된다'
+      - 'business: path roleCode와 body roleCode가 다르면 저장을 차단한다 -> 대상 roles row의 기존 상태가 유지된다'
+      - 'side-effect: 저장 성공 후 change_history row가 entity_name=roles 값을 가진다 -> history_id가 조회된다'
+      parameters:
+      - name: roleCode
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/RoleCode'
+      - *id004
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoleRequest'
+      responses:
+        '200':
+          description: updated role
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/Role'
+        '400':
+          description: validation error
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: forbidden
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '404':
+          description: not found
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-related-fr:
+      - CMN-FR-005
+      x-roles:
+      - authenticated
+  /api/user-roles:
+    get:
+      operationId: listUserRoles
+      summary: 사용자 역할 목록
+      tags:
+      - user-role
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-004
+      - REQ-024
+      parameters:
+      - *id001
+      - *id002
+      - *id003
+      - name: userId
+        in: query
+        schema:
+          type: string
+      - name: roleCode
+        in: query
+        schema:
+          $ref: '#/components/schemas/RoleCode'
+      - name: assignmentType
+        in: query
+        schema:
+          $ref: '#/components/schemas/RoleAssignmentType'
+      - name: activeOnly
+        in: query
+        schema:
+          type: boolean
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: filter
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: user role page
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/UserRolePage'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: forbidden
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-related-fr:
+      - CMN-FR-006
+      x-roles:
+      - authenticated
+  /api/user-roles/assignments:
+    post:
+      operationId: assignUserRoles
+      summary: 사용자 역할 부여
+      tags:
+      - user-role
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-004
+      - REQ-019
+      - REQ-024
+      x-business-rules:
+      - 하나 이상의 roleCode가 필요하다
+      - validFrom은 validTo보다 늦을 수 없다
+      - approverUserId는 기록용이며 승인 워크플로우 상태를 생성하지 않는다
+      x-side-effects:
+      - user_roles row를 ACTIVE 상태로 생성 또는 갱신한다
+      - 동일 사용자 기존 역할과 기간이 충돌하면 기존 row를 종료한다
+      - change_history에 user_roles 부여 전후 값을 기록한다
+      x-state-transitions:
+      - no assignment -> ACTIVE
+      - EXPIRED -> ACTIVE when re-granted
+      x-required-tests:
+      - 'happy: R09 세션이 유효한 요청을 저장한다 -> user_roles.status 값이 follow-up read에서 변경되어 보인다'
+      - 'auth: R01 교원 세션이 같은 요청을 보낸다 -> 403 응답과 ApiError.code=FORBIDDEN을 반환한다'
+      - 'validation: roleCodes가 빈 배열이다 -> ApiError.fieldErrors에 해당 field 오류가 포함된다'
+      - 'business: validFrom이 validTo보다 늦으면 user_roles가 추가되면 안 된다 -> 대상 user_roles row의 기존 상태가 유지된다'
+      - 'side-effect: 저장 성공 후 change_history row가 entity_name=user_roles 값을 가진다 -> history_id가 조회된다'
+      parameters:
+      - *id004
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignUserRolesRequest'
+      responses:
+        '201':
+          description: assigned user roles
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/UserRole'
+        '400':
+          description: validation error
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: forbidden
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-related-fr:
+      - CMN-FR-006
+      x-roles:
+      - authenticated
+  /api/user-roles/{userRoleId}/revoke:
+    post:
+      operationId: revokeUserRole
+      summary: 사용자 역할 회수
+      tags:
+      - user-role
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-004
+      - REQ-019
+      - REQ-024
+      x-business-rules:
+      - ACTIVE user_role만 회수할 수 있다
+      - 회수 후 해당 역할은 현재 유효 역할 목록에 포함되지 않는다
+      - revokeDate는 validFrom보다 이전일 수 없다
+      x-side-effects:
+      - user_roles.status를 REVOKED로 저장한다
+      - user_roles.valid_to를 revokeDate로 저장한다
+      - change_history에 user_roles 회수 전후 값을 기록한다
+      x-state-transitions:
+      - ACTIVE -> REVOKED
+      x-required-tests:
+      - 'happy: R09 세션이 유효한 요청을 저장한다 -> user_roles.status 값이 follow-up read에서 변경되어 보인다'
+      - 'auth: R01 교원 세션이 같은 요청을 보낸다 -> 403 응답과 ApiError.code=FORBIDDEN을 반환한다'
+      - 'validation: revokeDate가 validFrom보다 이전이다 -> ApiError.fieldErrors에 해당 field 오류가 포함된다'
+      - 'business: 이미 REVOKED 상태이면 중복 회수를 차단한다 -> 대상 user_roles row의 기존 상태가 유지된다'
+      - 'side-effect: 저장 성공 후 change_history row가 entity_name=user_roles 값을 가진다 -> history_id가 조회된다'
+      parameters:
+      - name: userRoleId
+        in: path
+        required: true
+        schema:
+          type: string
+      - *id004
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevokeUserRoleRequest'
+      responses:
+        '200':
+          description: revoked user role
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/UserRole'
+        '400':
+          description: validation error
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: forbidden
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '404':
+          description: not found
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-related-fr:
+      - CMN-FR-006
+      x-roles:
+      - authenticated
+  /api/menu-permissions:
+    get:
+      operationId: listMenuPermissions
+      summary: 메뉴 권한 목록
+      tags:
+      - menu-permission
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-005
+      - REQ-012
+      - REQ-024
+      parameters:
+      - *id001
+      - *id002
+      - *id003
+      - name: targetType
+        in: query
+        schema:
+          $ref: '#/components/schemas/PermissionTargetType'
+      - name: targetId
+        in: query
+        schema:
+          type: string
+      - name: menuId
+        in: query
+        schema:
+          type: string
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: filter
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: menu permission page
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/MenuPermissionPage'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: forbidden
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-related-fr:
+      - CMN-FR-007
+      x-roles:
+      - authenticated
+  /api/menu-permissions/bulk:
+    put:
+      operationId: saveMenuPermissions
+      summary: 메뉴 권한 저장
+      tags:
+      - menu-permission
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-005
+      - REQ-012
+      - REQ-019
+      - REQ-022
+      - REQ-024
+      x-business-rules:
+      - targetType은 ROLE, ORGANIZATION, USER 중 하나여야 한다
+      - 명시적 DENY는 ALLOW보다 우선한다
+      - 저장된 권한은 화면 메뉴 노출과 보호 API 접근통제에 동일하게 적용된다
+      x-side-effects:
+      - menu_permissions row를 target/menu 단위로 upsert한다
+      - 현재 메뉴 cache가 있다면 해당 사용자 범위를 무효화한다
+      - change_history에 menu_permissions 변경 전후 값을 기록한다
+      x-state-transitions:
+      - menu access UNSET -> ALLOW
+      - menu access ALLOW -> DENY
+      x-required-tests:
+      - 'happy: R09 세션이 유효한 요청을 저장한다 -> menu_permissions.access_decision 값이 follow-up read에서 변경되어 보인다'
+      - 'auth: R01 교원 세션이 같은 요청을 보낸다 -> 403 응답과 ApiError.code=FORBIDDEN을 반환한다'
+      - 'validation: targetType=TEAM -> ApiError.fieldErrors에 해당 field 오류가 포함된다'
+      - 'business: DENY와 ALLOW가 충돌하면 DENY 결과가 메뉴 조회와 보호 API에 남아야 한다 -> 대상 menu_permissions row의 기존 상태가 유지된다'
+      - 'side-effect: 저장 성공 후 change_history row가 entity_name=menu_permissions 값을 가진다 -> history_id가 조회된다'
+      parameters:
+      - *id004
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveMenuPermissionsRequest'
+      responses:
+        '200':
+          description: saved menu permissions
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/MenuPermission'
+        '400':
+          description: validation error
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: forbidden
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-related-fr:
+      - CMN-FR-007
+      x-roles:
+      - authenticated
+  /api/menus/tree:
+    get:
+      operationId: getMenuTree
+      summary: 메뉴 구조
+      tags:
+      - menu
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-006
+      - REQ-010
+      - REQ-014
+      - REQ-024
+      parameters:
+      - name: includeInactive
+        in: query
+        schema:
+          type: boolean
+      - name: level
+        in: query
+        schema:
+          $ref: '#/components/schemas/MenuLevel'
+      responses:
+        '200':
+          description: menu tree
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/MenuNode'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: forbidden
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-related-fr:
+      - CMN-FR-013
+      x-roles:
+      - authenticated
+  /api/menus/{menuId}/structure:
+    put:
+      operationId: saveMenuStructure
+      summary: 메뉴 구조 저장
+      tags:
+      - menu
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-006
+      - REQ-014
+      - REQ-019
+      - REQ-024
+      x-business-rules:
+      - parentMenuId는 menuId와 같을 수 없다
+      - 동일 parent 안의 sortOrder는 메뉴 노출 순서와 관리 목록 순서에 동일하게 사용된다
+      - 범위 밖 업무 메뉴는 업무 API 없이 PENDING 안내 수준으로만 허용한다
+      x-side-effects:
+      - menus.parent_menu_id와 sort_order를 저장한다
+      - 관련 menu_permissions의 menu_id 참조는 유지한다
+      - change_history에 menus 구조 변경 전후 값을 기록한다
+      x-state-transitions:
+      - menus.status ACTIVE -> PENDING only for non-business placeholder
+      - menus.status ACTIVE -> INACTIVE when disabled
+      x-required-tests:
+      - 'happy: R09 세션이 유효한 요청을 저장한다 -> menus.parent_menu_id 값이 follow-up read에서 변경되어 보인다'
+      - 'auth: R01 교원 세션이 같은 요청을 보낸다 -> 403 응답과 ApiError.code=FORBIDDEN을 반환한다'
+      - 'validation: parentMenuId가 menuId와 같다 -> ApiError.fieldErrors에 해당 field 오류가 포함된다'
+      - 'business: 범위 밖 업무 URL 저장 요청은 PENDING 안내 메뉴 외에는 차단한다 -> 대상 menus row의 기존 상태가 유지된다'
+      - 'side-effect: 저장 성공 후 change_history row가 entity_name=menus 값을 가진다 -> history_id가 조회된다'
+      parameters:
+      - name: menuId
+        in: path
+        required: true
+        schema:
+          type: string
+      - *id004
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveMenuStructureRequest'
+      responses:
+        '200':
+          description: saved menu structure
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/Menu'
+        '400':
+          description: validation error
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: forbidden
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '404':
+          description: not found
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-related-fr:
+      - CMN-FR-013
+      x-roles:
+      - authenticated
+  /api/menus/reorder:
+    put:
+      operationId: reorderMenus
+      summary: 메뉴 순서 재정렬
+      tags:
+      - menu
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-006
+      - REQ-019
+      - REQ-024
+      x-business-rules:
+      - 같은 parentMenuId 아래 메뉴만 한 번에 재정렬할 수 있다
+      - sortOrder는 중복될 수 없다
+      - 재정렬 결과는 현재 메뉴 노출 순서에 즉시 반영된다
+      x-side-effects:
+      - menus.sort_order를 요청 순서대로 저장한다
+      - 현재 메뉴 조회 결과의 정렬 cache를 무효화한다
+      - change_history에 menus 순서 변경 전후 값을 기록한다
+      x-required-tests:
+      - 'happy: 같은 parent 아래 menuIds를 새 순서로 저장한다 -> menus.sort_order가 follow-up getMenuTree에서 같은 순서로 보인다'
+      - 'auth: R01 교원 세션이 재정렬을 요청한다 -> 403 응답과 ApiError.code=FORBIDDEN을 반환한다'
+      - 'validation: menuIds에 서로 다른 parent 메뉴가 섞인다 -> ApiError.fieldErrors에 menuIds 오류가 포함된다'
+      - 'business: sortOrder 중복이 생기는 요청이다 -> 기존 menus.sort_order 값이 유지된다'
+      - 'side-effect: 재정렬 성공 후 change_history row가 entity_name=menus 값을 가진다 -> history_id가 조회된다'
+      parameters:
+      - *id004
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReorderMenusRequest'
+      responses:
+        '200':
+          description: reordered menus
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/Menu'
+        '400':
+          description: validation error
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: forbidden
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-related-fr:
+      - CMN-FR-013
+      x-roles:
+      - authenticated
+  /api/menus/{menuId}/info:
+    put:
+      operationId: saveMenuInfo
+      summary: 메뉴 실행정보 저장
+      tags:
+      - menu
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-007
+      - REQ-019
+      - REQ-024
+      x-business-rules:
+      - menuName은 비어 있을 수 없다
+      - screen 메뉴에는 screenId와 url이 필요하다
+      - url은 frontend route와 서버 접근통제 참조값으로 상대 route 형식을 사용한다
+      x-side-effects:
+      - menus.menu_name, screen_id, url, icon, business_category, description을 저장한다
+      - 현재 메뉴 조회 결과의 label/route cache를 무효화한다
+      - change_history에 menus 실행정보 변경 전후 값을 기록한다
+      x-required-tests:
+      - 'happy: R09 세션이 유효한 요청을 저장한다 -> menus.screen_id 값이 follow-up read에서 변경되어 보인다'
+      - 'auth: R01 교원 세션이 같은 요청을 보낸다 -> 403 응답과 ApiError.code=FORBIDDEN을 반환한다'
+      - 'validation: menuName이 빈 문자열이다 -> ApiError.fieldErrors에 해당 field 오류가 포함된다'
+      - 'business: screen 메뉴에 url이 없으면 실행 화면 연결을 저장하지 않는다 -> 대상 menus row의 기존 상태가 유지된다'
+      - 'side-effect: 저장 성공 후 change_history row가 entity_name=menus 값을 가진다 -> history_id가 조회된다'
+      parameters:
+      - name: menuId
+        in: path
+        required: true
+        schema:
+          type: string
+      - *id004
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveMenuInfoRequest'
+      responses:
+        '200':
+          description: saved menu info
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/Menu'
+        '400':
+          description: validation error
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: forbidden
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '404':
+          description: not found
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-related-fr:
+      - CMN-FR-014
+      x-roles:
+      - authenticated
+  /api/code-groups:
+    get:
+      operationId: listCodeGroups
+      summary: 코드그룹 목록
+      tags:
+      - code
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-008
+      - REQ-024
+      parameters:
+      - *id001
+      - *id002
+      - *id003
+      - name: groupId
+        in: query
+        schema:
+          type: string
+      - name: groupName
+        in: query
+        schema:
+          type: string
+      - name: useYn
+        in: query
+        schema:
+          $ref: '#/components/schemas/YesNo'
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: filter
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: code group page
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/CodeGroupPage'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: forbidden
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-related-fr:
+      - CMN-FR-016
+      x-roles:
+      - authenticated
+    post:
+      operationId: createCodeGroup
+      summary: 코드그룹 등록
+      tags:
+      - code
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-008
+      - REQ-017
+      - REQ-019
+      - REQ-024
+      x-business-rules:
+      - groupId와 groupName은 비어 있을 수 없다
+      - groupId는 기존 code_groups 안에서 중복될 수 없다
+      - 사용 중인 코드그룹 삭제 대신 useYn=N 비활성화를 우선한다
+      x-side-effects:
+      - code_groups row를 use_yn=Y로 생성한다
+      - 상세코드 이동 기준으로 group_id를 반환한다
+      - change_history에 code_groups 생성 값을 기록한다
+      x-state-transitions:
+      - no code group -> use_yn Y
+      x-required-tests:
+      - 'happy: R09 세션이 유효한 요청을 저장한다 -> code_groups.group_id 값이 follow-up read에서 변경되어 보인다'
+      - 'auth: R01 교원 세션이 같은 요청을 보낸다 -> 403 응답과 ApiError.code=FORBIDDEN을 반환한다'
+      - 'validation: groupId가 빈 문자열이다 -> ApiError.fieldErrors에 해당 field 오류가 포함된다'
+      - 'business: 중복 groupId이면 기존 code_groups row가 변경되면 안 된다 -> 대상 code_groups row의 기존 상태가 유지된다'
+      - 'side-effect: 저장 성공 후 change_history row가 entity_name=code_groups 값을 가진다 -> history_id가 조회된다'
+      parameters:
+      - *id004
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveCodeGroupRequest'
+      responses:
+        '201':
+          description: created code group
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/CodeGroup'
+        '400':
+          description: validation error
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: forbidden
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '409':
+          description: duplicate
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-related-fr:
+      - CMN-FR-016
+      x-roles:
+      - authenticated
+  /api/code-groups/{groupId}:
+    put:
+      operationId: updateCodeGroup
+      summary: 코드그룹 수정
+      tags:
+      - code
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-008
+      - REQ-017
+      - REQ-019
+      - REQ-024
+      x-business-rules:
+      - groupName은 비어 있을 수 없다
+      - path groupId와 body groupId는 같아야 한다
+      - 사용 중인 코드그룹은 물리삭제하지 않고 useYn=N으로만 비활성화한다
+      x-side-effects:
+      - code_groups.group_name, description, managing_department, use_yn을 저장한다
+      - 연결된 detail_codes.group_id는 유지한다
+      - change_history에 code_groups 변경 전후 값을 기록한다
+      x-state-transitions:
+      - code_groups.use_yn Y -> N when deactivated
+      - code_groups.use_yn N -> Y when reactivated
+      x-required-tests:
+      - 'happy: R09 세션이 유효한 요청을 저장한다 -> code_groups.use_yn 값이 follow-up read에서 변경되어 보인다'
+      - 'auth: R01 교원 세션이 같은 요청을 보낸다 -> 403 응답과 ApiError.code=FORBIDDEN을 반환한다'
+      - 'validation: groupName이 빈 문자열이다 -> ApiError.fieldErrors에 해당 field 오류가 포함된다'
+      - 'business: path groupId와 body groupId가 다르면 저장을 차단한다 -> 대상 code_groups row의 기존 상태가 유지된다'
+      - 'side-effect: 저장 성공 후 change_history row가 entity_name=code_groups 값을 가진다 -> history_id가 조회된다'
+      parameters:
+      - name: groupId
+        in: path
+        required: true
+        schema:
+          type: string
+      - *id004
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveCodeGroupRequest'
+      responses:
+        '200':
+          description: updated code group
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/CodeGroup'
+        '400':
+          description: validation error
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: forbidden
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '404':
+          description: not found
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-related-fr:
+      - CMN-FR-016
+      x-roles:
+      - authenticated
+  /api/code-groups/{groupId}/detail-codes:
+    get:
+      operationId: listDetailCodes
+      summary: 상세코드 목록
+      tags:
+      - code
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-008
+      - REQ-009
+      - REQ-024
+      parameters:
+      - *id001
+      - *id002
+      - *id003
+      - name: groupId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: parentDetailCodeId
+        in: query
+        schema:
+          type: string
+      - name: useYn
+        in: query
+        schema:
+          $ref: '#/components/schemas/YesNo'
+      responses:
+        '200':
+          description: detail code page
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/DetailCodePage'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: forbidden
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '404':
+          description: not found
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-related-fr:
+      - CMN-FR-016
+      - CMN-FR-017
+      x-roles:
+      - authenticated
+    post:
+      operationId: createDetailCode
+      summary: 상세코드 등록
+      tags:
+      - code
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-009
+      - REQ-017
+      - REQ-019
+      - REQ-024
+      x-business-rules:
+      - codeValue와 codeName은 비어 있을 수 없다
+      - codeValue는 같은 groupId 안에서 중복될 수 없다
+      - parentDetailCodeId는 같은 groupId의 상세코드만 참조할 수 있다
+      x-side-effects:
+      - detail_codes row를 use_yn=Y로 생성한다
+      - parentDetailCodeId가 있으면 코드 계층 관계를 저장한다
+      - change_history에 detail_codes 생성 값을 기록한다
+      x-state-transitions:
+      - no detail code -> use_yn Y
+      x-required-tests:
+      - 'happy: R09 세션이 유효한 요청을 저장한다 -> detail_codes.code_value 값이 follow-up read에서 변경되어 보인다'
+      - 'auth: R01 교원 세션이 같은 요청을 보낸다 -> 403 응답과 ApiError.code=FORBIDDEN을 반환한다'
+      - 'validation: codeValue가 빈 문자열이다 -> ApiError.fieldErrors에 해당 field 오류가 포함된다'
+      - 'business: parentDetailCodeId가 다른 groupId이면 detail_codes row가 생성되면 안 된다 -> 대상 detail_codes row의 기존 상태가 유지된다'
+      - 'side-effect: 저장 성공 후 change_history row가 entity_name=detail_codes 값을 가진다 -> history_id가 조회된다'
+      parameters:
+      - name: groupId
+        in: path
+        required: true
+        schema:
+          type: string
+      - *id004
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveDetailCodeRequest'
+      responses:
+        '201':
+          description: created detail code
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/DetailCode'
+        '400':
+          description: validation error
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: forbidden
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '404':
+          description: not found
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '409':
+          description: duplicate
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-related-fr:
+      - CMN-FR-017
+      x-roles:
+      - authenticated
+  /api/detail-codes/{detailCodeId}:
+    put:
+      operationId: updateDetailCode
+      summary: 상세코드 수정
+      tags:
+      - code
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-009
+      - REQ-017
+      - REQ-019
+      - REQ-024
+      x-business-rules:
+      - codeName은 비어 있을 수 없다
+      - validFrom은 validTo보다 늦을 수 없다
+      - 사용 중인 상세코드는 물리삭제보다 useYn=N 비활성화를 우선한다
+      x-side-effects:
+      - detail_codes.code_name, sort_order, additional_attributes, valid_from, valid_to, use_yn을 저장한다
+      - 상위코드 계층 정보가 목록 조회에 반영된다
+      - change_history에 detail_codes 변경 전후 값을 기록한다
+      x-state-transitions:
+      - detail_codes.use_yn Y -> N when deactivated
+      - detail_codes.use_yn N -> Y when reactivated
+      x-required-tests:
+      - 'happy: R09 세션이 유효한 요청을 저장한다 -> detail_codes.use_yn 값이 follow-up read에서 변경되어 보인다'
+      - 'auth: R01 교원 세션이 같은 요청을 보낸다 -> 403 응답과 ApiError.code=FORBIDDEN을 반환한다'
+      - 'validation: codeName이 빈 문자열이다 -> ApiError.fieldErrors에 해당 field 오류가 포함된다'
+      - 'business: validFrom이 validTo보다 늦으면 기존 detail_codes row가 유지된다 -> 대상 detail_codes row의 기존 상태가 유지된다'
+      - 'side-effect: 저장 성공 후 change_history row가 entity_name=detail_codes 값을 가진다 -> history_id가 조회된다'
+      parameters:
+      - name: detailCodeId
+        in: path
+        required: true
+        schema:
+          type: string
+      - *id004
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveDetailCodeRequest'
+      responses:
+        '200':
+          description: updated detail code
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/DetailCode'
+        '400':
+          description: validation error
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: forbidden
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+        '404':
+          description: not found
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ApiError'
+      x-related-fr:
+      - CMN-FR-017
+      x-roles:
+      - authenticated
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: SESSION
+      description: HttpOnly SameSite=Lax session cookie
+  parameters:
+    page:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    size:
+      name: size
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 20
+    sort:
+      name: sort
+      in: query
+      required: false
+      schema:
+        type: string
+      description: field,direction format
+  schemas:
+    ApiError:
+      type: object
+      required:
+      - code
+      - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        fieldErrors:
+          type: object
+          additionalProperties:
+            type: string
+    ApiResponse:
+      type: object
+      required:
+      - success
+      properties:
+        success:
+          type: boolean
+        data: {}
+        error:
+          $ref: '#/components/schemas/ApiError'
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+            size:
+              type: integer
+            totalElements:
+              type: integer
+            totalPages:
+              type: integer
+    YesNo:
+      type: string
+      enum:
+      - Y
+      - N
+    AccountStatus:
+      type: string
+      enum:
+      - ACTIVE
+      - INACTIVE
+      - LOCKED
+    EmploymentStatus:
+      type: string
+      enum:
+      - ACTIVE
+      - LEAVE
+      - RETIRED
+    OrganizationType:
+      type: string
+      enum:
+      - UNIVERSITY
+      - GRADUATE_SCHOOL
+      - COLLEGE
+      - DEPARTMENT
+      - OFFICE
+    OrganizationStatus:
+      type: string
+      enum:
+      - ACTIVE
+      - INACTIVE
+      - ENDED
+    RoleCode:
+      type: string
+      enum:
+      - R01
+      - R02
+      - R03
+      - R04
+      - R05
+      - R06
+      - R07
+      - R08
+      - R09
+    RoleAssignmentType:
+      type: string
+      enum:
+      - POSITION_BASED
+      - MANUAL
+    UserRoleStatus:
+      type: string
+      enum:
+      - ACTIVE
+      - REVOKED
+      - EXPIRED
+    MenuLevel:
+      type: string
+      enum:
+      - TOP
+      - MIDDLE
+      - SCREEN
+    MenuStatus:
+      type: string
+      enum:
+      - ACTIVE
+      - INACTIVE
+      - PENDING
+    PermissionTargetType:
+      type: string
+      enum:
+      - ROLE
+      - ORGANIZATION
+      - USER
+    AccessDecision:
+      type: string
+      enum:
+      - ALLOW
+      - DENY
+      - UNSET
+    SessionStatus:
+      type: string
+      enum:
+      - ACTIVE
+      - EXPIRED
+      - REVOKED
+    LoginRequest:
+      type: object
+      required:
+      - loginId
+      - password
+      properties:
+        loginId:
+          type: string
+        password:
+          type: string
+    CurrentUser:
+      type: object
+      properties:
+        userId:
+          type: string
+        loginId:
+          type: string
+        staffName:
+          type: string
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoleCode'
+    User:
+      type: object
+      properties:
+        userId:
+          type: string
+        loginId:
+          type: string
+        staffNo:
+          type: string
+        staffName:
+          type: string
+        organizationCode:
+          type: string
+        rankName:
+          type: string
+        employmentStatus:
+          $ref: '#/components/schemas/EmploymentStatus'
+        positionName:
+          type: string
+        retirementDate:
+          type: string
+          format: date
+        lastSyncedAt:
+          type: string
+          format: date-time
+        systemUseYn:
+          $ref: '#/components/schemas/YesNo'
+        accountStatus:
+          $ref: '#/components/schemas/AccountStatus'
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoleCode'
+    UserPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+        totalElements:
+          type: integer
+    UpdateUserAdministrationRequest:
+      type: object
+      required:
+      - systemUseYn
+      - roleCodes
+      properties:
+        systemUseYn:
+          $ref: '#/components/schemas/YesNo'
+        roleCodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoleCode'
+    Organization:
+      type: object
+      properties:
+        organizationId:
+          type: string
+        organizationCode:
+          type: string
+        organizationName:
+          type: string
+        organizationType:
+          $ref: '#/components/schemas/OrganizationType'
+        parentOrganizationId:
+          type: string
+        effectiveStartDate:
+          type: string
+          format: date
+        effectiveEndDate:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/OrganizationStatus'
+    OrganizationPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Organization'
+        totalElements:
+          type: integer
+    OrganizationNode:
+      allOf:
+      - $ref: '#/components/schemas/Organization'
+      - type: object
+        properties:
+          children:
+            type: array
+            items:
+              $ref: '#/components/schemas/OrganizationNode'
+    SaveOrganizationRelationshipRequest:
+      type: object
+      required:
+      - parentOrganizationId
+      - effectiveStartDate
+      properties:
+        parentOrganizationId:
+          type: string
+        effectiveStartDate:
+          type: string
+          format: date
+        effectiveEndDate:
+          type: string
+          format: date
+    Role:
+      type: object
+      properties:
+        roleCode:
+          $ref: '#/components/schemas/RoleCode'
+        roleName:
+          type: string
+        purpose:
+          type: string
+        grantCriteria:
+          type: string
+        defaultDataScope:
+          type: string
+        useYn:
+          $ref: '#/components/schemas/YesNo'
+    RolePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+        totalElements:
+          type: integer
+    UpdateRoleRequest:
+      type: object
+      required:
+      - roleName
+      properties:
+        roleCode:
+          $ref: '#/components/schemas/RoleCode'
+        roleName:
+          type: string
+        purpose:
+          type: string
+        grantCriteria:
+          type: string
+        defaultDataScope:
+          type: string
+        useYn:
+          $ref: '#/components/schemas/YesNo'
+    UserRole:
+      type: object
+      properties:
+        userRoleId:
+          type: string
+        userId:
+          type: string
+        roleCode:
+          $ref: '#/components/schemas/RoleCode'
+        assignmentType:
+          $ref: '#/components/schemas/RoleAssignmentType'
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
+        approverUserId:
+          type: string
+        status:
+          $ref: '#/components/schemas/UserRoleStatus'
+    UserRolePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserRole'
+        totalElements:
+          type: integer
+    AssignUserRolesRequest:
+      type: object
+      required:
+      - userId
+      - roleCodes
+      - assignmentType
+      - validFrom
+      properties:
+        userId:
+          type: string
+        roleCodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoleCode'
+        assignmentType:
+          $ref: '#/components/schemas/RoleAssignmentType'
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
+        approverUserId:
+          type: string
+    RevokeUserRoleRequest:
+      type: object
+      required:
+      - revokeDate
+      properties:
+        revokeDate:
+          type: string
+          format: date
+    Menu:
+      type: object
+      properties:
+        menuId:
+          type: string
+        parentMenuId:
+          type: string
+        menuLevel:
+          $ref: '#/components/schemas/MenuLevel'
+        menuName:
+          type: string
+        sortOrder:
+          type: integer
+        screenId:
+          type: string
+        url:
+          type: string
+        icon:
+          type: string
+        businessCategory:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: '#/components/schemas/MenuStatus'
+    MenuNode:
+      allOf:
+      - $ref: '#/components/schemas/Menu'
+      - type: object
+        properties:
+          children:
+            type: array
+            items:
+              $ref: '#/components/schemas/MenuNode'
+    SaveMenuStructureRequest:
+      type: object
+      required:
+      - parentMenuId
+      - sortOrder
+      properties:
+        parentMenuId:
+          type: string
+        sortOrder:
+          type: integer
+        status:
+          $ref: '#/components/schemas/MenuStatus'
+    ReorderMenusRequest:
+      type: object
+      required:
+      - parentMenuId
+      - menuIds
+      properties:
+        parentMenuId:
+          type: string
+        menuIds:
+          type: array
+          items:
+            type: string
+    SaveMenuInfoRequest:
+      type: object
+      required:
+      - menuName
+      properties:
+        menuName:
+          type: string
+        screenId:
+          type: string
+        url:
+          type: string
+        icon:
+          type: string
+        businessCategory:
+          type: string
+        description:
+          type: string
+    MenuPermission:
+      type: object
+      properties:
+        permissionId:
+          type: string
+        targetType:
+          $ref: '#/components/schemas/PermissionTargetType'
+        targetId:
+          type: string
+        menuId:
+          type: string
+        accessDecision:
+          $ref: '#/components/schemas/AccessDecision'
+        useYn:
+          $ref: '#/components/schemas/YesNo'
+    MenuPermissionPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MenuPermission'
+        totalElements:
+          type: integer
+    SaveMenuPermissionsRequest:
+      type: object
+      required:
+      - targetType
+      - targetId
+      - permissions
+      properties:
+        targetType:
+          $ref: '#/components/schemas/PermissionTargetType'
+        targetId:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: object
+            required:
+            - menuId
+            - accessDecision
+            properties:
+              menuId:
+                type: string
+              accessDecision:
+                $ref: '#/components/schemas/AccessDecision'
+    CodeGroup:
+      type: object
+      properties:
+        groupId:
+          type: string
+        groupName:
+          type: string
+        description:
+          type: string
+        managingDepartment:
+          type: string
+        useYn:
+          $ref: '#/components/schemas/YesNo'
+    CodeGroupPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CodeGroup'
+        totalElements:
+          type: integer
+    SaveCodeGroupRequest:
+      type: object
+      required:
+      - groupId
+      - groupName
+      properties:
+        groupId:
+          type: string
+        groupName:
+          type: string
+        description:
+          type: string
+        managingDepartment:
+          type: string
+        useYn:
+          $ref: '#/components/schemas/YesNo'
+    DetailCode:
+      type: object
+      properties:
+        detailCodeId:
+          type: string
+        groupId:
+          type: string
+        codeValue:
+          type: string
+        codeName:
+          type: string
+        parentDetailCodeId:
+          type: string
+        sortOrder:
+          type: integer
+        additionalAttributes:
+          type: object
+          additionalProperties: true
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
+        useYn:
+          $ref: '#/components/schemas/YesNo'
+    DetailCodePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DetailCode'
+        totalElements:
+          type: integer
+    SaveDetailCodeRequest:
+      type: object
+      required:
+      - codeValue
+      - codeName
+      - sortOrder
+      properties:
+        codeValue:
+          type: string
+        codeName:
+          type: string
+        parentDetailCodeId:
+          type: string
+        sortOrder:
+          type: integer
+        additionalAttributes:
+          type: object
+          additionalProperties: true
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
+        useYn:
+          $ref: '#/components/schemas/YesNo'
+security:
+- sessionCookie: []

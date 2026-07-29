@@ -1,0 +1,47 @@
+services:
+  database:
+    image: postgres:16.6-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fpe}
+      POSTGRES_USER: ${POSTGRES_USER:-fpe}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fpe_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  backend:
+    image: fpe-common-backend:0.1.0
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    pull_policy: build
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://database:5432/fpe
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-fpe}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-fpe_password}
+    depends_on:
+      database:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  frontend:
+    image: fpe-common-frontend:0.1.0
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    pull_policy: build
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+volumes:
+  postgres_data:
