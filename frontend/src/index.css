@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: acumin-pro, Acumin_Pro, "Helvetica Neue", Helvetica, Arial,
+    sans-serif;
+  color: #191919;
+  background: #ffffff;
+}
+body {
+  margin: 0;
+  min-width: 320px;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+.focus-ring {
+  @apply focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#0057FF] focus-visible:outline-offset-[3px];
+}
