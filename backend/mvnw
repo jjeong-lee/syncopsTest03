@@ -1,0 +1,27 @@
+#!/usr/bin/env sh
+set -eu
+
+MAVEN_VERSION="3.9.9"
+MAVEN_HOME_DIR="${MAVEN_USER_HOME:-${HOME}/.m2}/wrapper/apache-maven-${MAVEN_VERSION}"
+
+if command -v mvn >/dev/null 2>&1; then
+  exec mvn "$@"
+fi
+
+if [ ! -x "${MAVEN_HOME_DIR}/bin/mvn" ]; then
+  mkdir -p "$(dirname "${MAVEN_HOME_DIR}")"
+  ARCHIVE="/tmp/apache-maven-${MAVEN_VERSION}-bin.tar.gz"
+  URL="https://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "${URL}" -o "${ARCHIVE}"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q "${URL}" -O "${ARCHIVE}"
+  else
+    echo "Apache Maven is required, and neither curl nor wget is available to download it." >&2
+    exit 127
+  fi
+  tar -xzf "${ARCHIVE}" -C "$(dirname "${MAVEN_HOME_DIR}")"
+  rm -f "${ARCHIVE}"
+fi
+
+exec "${MAVEN_HOME_DIR}/bin/mvn" "$@"
