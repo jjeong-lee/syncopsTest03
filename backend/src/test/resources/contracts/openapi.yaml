@@ -1,0 +1,3271 @@
+openapi: 3.0.3
+info:
+  title: 교수업적평가 공통기능 1차 API
+  version: 0.1.0
+  description: 한국교원대학교 교수업적평가시스템 공통기능 1차 범위 HTTP API contract
+servers:
+- url: /
+  description: frontend nginx reverse proxy relative base
+paths:
+  /api/health:
+    get:
+      operationId: health
+      summary: 헬스체크
+      x-related-requirements:
+      - REQ-129
+      responses:
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/HealthResponse'
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+  /api/auth/login:
+    post:
+      operationId: login
+      summary: 내부 계정 로그인
+      x-related-requirements:
+      - REQ-057
+      - REQ-085
+      - REQ-086
+      - REQ-087
+      responses:
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/CurrentUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      x-business-rules:
+      - admin/admin seed 계정은 Docker Compose 직후 로그인 가능해야 한다
+      - 성공 시 R09 역할과 9개 목표 메뉴 권한을 현재 사용자에 연결한다
+      x-side-effects:
+      - session 레코드를 ACTIVE 상태로 저장한다
+      - HttpOnly SameSite=Lax 세션 쿠키를 발급한다
+      x-required-tests:
+      - 'happy: R09 세션으로 login 요청 성공 -> 후속 조회에서 session.status 변경값이 보인다'
+      - 'auth: 비로그인 세션으로 login 요청 -> HTTP 403을 반환한다'
+      - 'validation: username 또는 password 공백 -> ApiError.fields에 해당 필드 오류가 포함된다'
+      - 'business: linked requirement의 불변/범위 규칙 위반 -> session.status 기존 값이 유지된다'
+      - 'side-effect: login 성공 -> session.updated_at 또는 변경 사유 필드가 갱신된다'
+      x-state-transitions:
+      - 없음 -> ACTIVE
+  /api/auth/logout:
+    post:
+      operationId: logout
+      summary: 로그아웃
+      x-related-requirements:
+      - REQ-057
+      responses:
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/EmptyResponse'
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+      security: &id001
+      - SessionCookieAuth: []
+      x-business-rules:
+      - 인증된 ACTIVE 세션만 로그아웃할 수 있다
+      x-side-effects:
+      - session.status를 LOGGED_OUT으로 저장한다
+      - 세션 쿠키 만료 응답을 반환한다
+      x-required-tests:
+      - 'happy: R09 세션으로 logout 요청 성공 -> 후속 조회에서 session.status 변경값이 보인다'
+      - 'auth: 비로그인 세션으로 logout 요청 -> HTTP 403을 반환한다'
+      - 'validation: 세션 쿠키 누락 -> ApiError.fields에 해당 필드 오류가 포함된다'
+      - 'business: linked requirement의 불변/범위 규칙 위반 -> session.status 기존 값이 유지된다'
+      - 'side-effect: logout 성공 -> session.updated_at 또는 변경 사유 필드가 갱신된다'
+      x-state-transitions:
+      - ACTIVE -> LOGGED_OUT
+      x-roles:
+      - authenticated
+  /api/auth/me:
+    get:
+      operationId: getCurrentUser
+      summary: 현재 사용자 조회
+      x-related-requirements:
+      - REQ-057
+      - REQ-066
+      - REQ-067
+      responses:
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/CurrentUser'
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+      security: *id001
+      x-roles:
+      - authenticated
+  /api/users:
+    get:
+      operationId: searchUsers
+      summary: 사용자 조건 검색
+      x-related-requirements:
+      - REQ-028
+      - REQ-058
+      responses:
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/UserPage'
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+      security: *id001
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: collection pagination/filtering parameter
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: collection pagination/filtering parameter
+      - name: sort
+        in: query
+        required: false
+        schema:
+          type: string
+        description: collection pagination/filtering parameter
+      - name: staffNo
+        in: query
+        required: false
+        schema:
+          type: string
+        description: staffNo filter
+      - name: staffName
+        in: query
+        required: false
+        schema:
+          type: string
+        description: staffName filter
+      - name: organizationCode
+        in: query
+        required: false
+        schema:
+          type: string
+        description: organizationCode filter
+      - name: positionName
+        in: query
+        required: false
+        schema:
+          type: string
+        description: positionName filter
+      - name: employmentStatus
+        in: query
+        required: false
+        schema:
+          type: string
+        description: employmentStatus filter
+      - name: roleCode
+        in: query
+        required: false
+        schema:
+          type: string
+        description: roleCode filter
+      - name: systemUseYn
+        in: query
+        required: false
+        schema:
+          type: string
+        description: systemUseYn filter
+      - name: filter
+        in: query
+        required: false
+        schema:
+          type: string
+      x-roles:
+      - authenticated
+  /api/users/{userId}/usage:
+    patch:
+      operationId: updateUserUsage
+      summary: 사용자 사용여부 변경
+      x-related-requirements:
+      - REQ-028
+      - REQ-058
+      - REQ-003
+      - REQ-019
+      - REQ-020
+      responses:
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/UserSummary'
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+      security: *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserUsageRequest'
+      x-business-rules:
+      - KORUS 원천정보는 직접 수정하지 않는다
+      - 시스템 사용여부만 로컬 DB에서 변경한다
+      x-side-effects:
+      - user_account.system_use_yn을 갱신한다
+      - user_account.updated_at과 change_reason을 남긴다
+      x-required-tests:
+      - 'happy: R09 세션으로 updateUserUsage 요청 성공 -> 후속 조회에서 user_account.system_use_yn 변경값이 보인다'
+      - 'auth: R01 교원 세션으로 updateUserUsage 요청 -> HTTP 403을 반환한다'
+      - 'validation: systemUseYn=INVALID -> ApiError.fields에 해당 필드 오류가 포함된다'
+      - 'business: linked requirement의 불변/범위 규칙 위반 -> user_account.system_use_yn 기존 값이 유지된다'
+      - 'side-effect: updateUserUsage 성공 -> user_account.updated_at 또는 변경 사유 필드가 갱신된다'
+      x-state-transitions:
+      - system_use_yn=Y -> N
+      - system_use_yn=N -> Y
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: userId path parameter
+      x-roles:
+      - authenticated
+  /api/users/{userId}/roles:
+    put:
+      operationId: updateUserRoles
+      summary: 사용자 업무 역할 변경
+      x-related-requirements:
+      - REQ-028
+      - REQ-058
+      - REQ-031
+      responses:
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/UserSummary'
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+      security: *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRolesRequest'
+      x-business-rules:
+      - 사용자에게 하나 이상의 역할을 부여·변경할 수 있다
+      - role_code는 R01~R09만 허용한다
+      x-side-effects:
+      - user_role 행을 생성하거나 종료한다
+      - 승인자와 유효기간을 저장한다
+      x-required-tests:
+      - 'happy: R09 세션으로 updateUserRoles 요청 성공 -> 후속 조회에서 user_role.role_code 변경값이 보인다'
+      - 'auth: R01 교원 세션으로 updateUserRoles 요청 -> HTTP 403을 반환한다'
+      - 'validation: roleCode=R99 -> ApiError.fields에 해당 필드 오류가 포함된다'
+      - 'business: linked requirement의 불변/범위 규칙 위반 -> user_role.role_code 기존 값이 유지된다'
+      - 'side-effect: updateUserRoles 성공 -> user_role.updated_at 또는 변경 사유 필드가 갱신된다'
+      x-state-transitions:
+      - 없음 -> ACTIVE assignment
+      - ACTIVE assignment -> ended assignment
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: userId path parameter
+      x-roles:
+      - authenticated
+  /api/organizations:
+    get:
+      operationId: searchOrganizations
+      summary: 조직 조건 검색
+      x-related-requirements:
+      - REQ-029
+      - REQ-059
+      responses:
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/OrganizationPage'
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+      security: *id001
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: collection pagination/filtering parameter
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: collection pagination/filtering parameter
+      - name: sort
+        in: query
+        required: false
+        schema:
+          type: string
+        description: collection pagination/filtering parameter
+      - name: organizationCode
+        in: query
+        required: false
+        schema:
+          type: string
+        description: organizationCode filter
+      - name: organizationName
+        in: query
+        required: false
+        schema:
+          type: string
+        description: organizationName filter
+      - name: organizationType
+        in: query
+        required: false
+        schema:
+          type: string
+        description: organizationType filter
+      - name: useYn
+        in: query
+        required: false
+        schema:
+          type: string
+        description: useYn filter
+      - name: filter
+        in: query
+        required: false
+        schema:
+          type: string
+      x-roles:
+      - authenticated
+  /api/organizations/tree:
+    get:
+      operationId: getOrganizationTree
+      summary: 조직 계층 조회
+      x-related-requirements:
+      - REQ-029
+      - REQ-059
+      responses:
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/OrganizationTree'
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+      security: *id001
+      x-roles:
+      - authenticated
+  /api/organizations/{organizationCode}/relation:
+    put:
+      operationId: updateOrganizationRelation
+      summary: 조직 관계 적용기간 변경
+      x-related-requirements:
+      - REQ-029
+      - REQ-059
+      - REQ-021
+      responses:
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/Organization'
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+      security: *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrganizationRelationRequest'
+      x-business-rules:
+      - 조직코드를 기준으로 상하위 조직 관계를 관리한다
+      - 적용 시작일·종료일과 상위조직 변경 이력을 보존한다
+      x-side-effects:
+      - organization.parent_organization_code와 effective period를 갱신한다
+      - relation_change_reason을 저장한다
+      x-required-tests:
+      - 'happy: R09 세션으로 updateOrganizationRelation 요청 성공 -> 후속 조회에서 organization.parent_organization_code 변경값이 보인다'
+      - 'auth: R01 교원 세션으로 updateOrganizationRelation 요청 -> HTTP 403을 반환한다'
+      - 'validation: effectiveEndDate가 effectiveStartDate보다 빠름 -> ApiError.fields에 해당 필드 오류가 포함된다'
+      - 'business: linked requirement의 불변/범위 규칙 위반 -> organization.parent_organization_code 기존 값이 유지된다'
+      - 'side-effect: updateOrganizationRelation 성공 -> organization.updated_at 또는 변경 사유 필드가 갱신된다'
+      x-state-transitions:
+      - 기존 parent/effective period -> 변경 parent/effective period
+      parameters:
+      - name: organizationCode
+        in: path
+        required: true
+        schema:
+          type: string
+        description: organizationCode path parameter
+      x-roles:
+      - authenticated
+  /api/roles:
+    get:
+      operationId: listRoles
+      summary: 역할 목록 조회
+      x-related-requirements:
+      - REQ-030
+      - REQ-060
+      - REQ-008
+      - REQ-009
+      - REQ-010
+      - REQ-011
+      - REQ-012
+      - REQ-013
+      - REQ-014
+      - REQ-015
+      - REQ-016
+      responses:
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/RoleList'
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+      security: *id001
+      x-roles:
+      - authenticated
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: filter
+        in: query
+        required: false
+        schema:
+          type: string
+    post:
+      operationId: createRole
+      summary: 역할 등록
+      x-related-requirements:
+      - REQ-030
+      - REQ-060
+      responses:
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '201':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/Role'
+      security: *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleRequest'
+      x-business-rules:
+      - role_code와 role_name은 구분하고 role_code는 R01~R09 체계를 유지한다
+      - 역할별 목적, 부여 기준, 데이터 범위 기본값을 저장한다
+      x-side-effects:
+      - role 레코드를 생성한다
+      - role.created_at/updated_at을 기록한다
+      x-required-tests:
+      - 'happy: R09 세션으로 createRole 요청 성공 -> 후속 조회에서 role.role_code 변경값이 보인다'
+      - 'auth: R01 교원 세션으로 createRole 요청 -> HTTP 403을 반환한다'
+      - 'validation: roleCode 공백 -> ApiError.fields에 해당 필드 오류가 포함된다'
+      - 'business: linked requirement의 불변/범위 규칙 위반 -> role.role_code 기존 값이 유지된다'
+      - 'side-effect: createRole 성공 -> role.updated_at 또는 변경 사유 필드가 갱신된다'
+      x-roles:
+      - authenticated
+  /api/roles/{roleCode}:
+    put:
+      operationId: updateRole
+      summary: 역할 기준 변경
+      x-related-requirements:
+      - REQ-030
+      - REQ-060
+      responses:
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/Role'
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+      security: *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleRequest'
+      x-business-rules:
+      - role_code는 수정할 수 없고 역할명·목적·부여 기준·데이터 범위 기본값만 변경한다
+      x-side-effects:
+      - role.role_name/purpose/grant_criteria/data_scope_default를 갱신한다
+      x-required-tests:
+      - 'happy: R09 세션으로 updateRole 요청 성공 -> 후속 조회에서 role.role_name 변경값이 보인다'
+      - 'auth: R01 교원 세션으로 updateRole 요청 -> HTTP 403을 반환한다'
+      - 'validation: path roleCode와 body roleCode 불일치 -> ApiError.fields에 해당 필드 오류가 포함된다'
+      - 'business: linked requirement의 불변/범위 규칙 위반 -> role.role_name 기존 값이 유지된다'
+      - 'side-effect: updateRole 성공 -> role.updated_at 또는 변경 사유 필드가 갱신된다'
+      parameters:
+      - name: roleCode
+        in: path
+        required: true
+        schema:
+          type: string
+        description: roleCode path parameter
+      x-roles:
+      - authenticated
+  /api/user-roles:
+    get:
+      operationId: listUserRoles
+      summary: 사용자별 역할 조회
+      x-related-requirements:
+      - REQ-031
+      - REQ-061
+      responses:
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/UserRolePage'
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+      security: *id001
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: collection pagination/filtering parameter
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: collection pagination/filtering parameter
+      - name: sort
+        in: query
+        required: false
+        schema:
+          type: string
+        description: collection pagination/filtering parameter
+      - name: userId
+        in: query
+        required: false
+        schema:
+          type: string
+        description: userId filter
+      - name: roleCode
+        in: query
+        required: false
+        schema:
+          type: string
+        description: roleCode filter
+      - name: assignmentType
+        in: query
+        required: false
+        schema:
+          type: string
+        description: assignmentType filter
+      - name: validOn
+        in: query
+        required: false
+        schema:
+          type: string
+        description: validOn filter
+      - name: filter
+        in: query
+        required: false
+        schema:
+          type: string
+      x-roles:
+      - authenticated
+  /api/user-roles/grants:
+    post:
+      operationId: grantUserRole
+      summary: 사용자 역할 부여
+      x-related-requirements:
+      - REQ-031
+      - REQ-061
+      responses:
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/UserRole'
+      security: *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrantUserRoleRequest'
+      x-business-rules:
+      - 사용자에게 하나 이상의 역할을 부여하고 유효기간과 승인자를 기록한다
+      - 보직 기반 역할과 수동 역할을 구분한다
+      x-side-effects:
+      - user_role 레코드를 ACTIVE assignment로 저장한다
+      - approved_by와 valid_from/valid_to를 저장한다
+      x-required-tests:
+      - 'happy: R09 세션으로 grantUserRole 요청 성공 -> 후속 조회에서 user_role.valid_from 변경값이 보인다'
+      - 'auth: R01 교원 세션으로 grantUserRole 요청 -> HTTP 403을 반환한다'
+      - 'validation: approvedBy 누락 -> ApiError.fields에 해당 필드 오류가 포함된다'
+      - 'business: linked requirement의 불변/범위 규칙 위반 -> user_role.valid_from 기존 값이 유지된다'
+      - 'side-effect: grantUserRole 성공 -> user_role.updated_at 또는 변경 사유 필드가 갱신된다'
+      x-state-transitions:
+      - 없음 -> ACTIVE assignment
+      x-roles:
+      - authenticated
+  /api/user-roles/revocations:
+    post:
+      operationId: revokeUserRole
+      summary: 사용자 역할 회수
+      x-related-requirements:
+      - REQ-031
+      - REQ-061
+      - REQ-056
+      responses:
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/UserRole'
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+      security: *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevokeUserRoleRequest'
+      x-business-rules:
+      - 역할 회수는 과거 이력을 물리삭제하지 않는다
+      - 회수 사유와 종료일을 기록한다
+      x-side-effects:
+      - user_role.valid_to 또는 use_yn을 갱신한다
+      - change_reason을 저장한다
+      x-required-tests:
+      - 'happy: R09 세션으로 revokeUserRole 요청 성공 -> 후속 조회에서 user_role.valid_to 변경값이 보인다'
+      - 'auth: R01 교원 세션으로 revokeUserRole 요청 -> HTTP 403을 반환한다'
+      - 'validation: userRoleId 누락 -> ApiError.fields에 해당 필드 오류가 포함된다'
+      - 'business: linked requirement의 불변/범위 규칙 위반 -> user_role.valid_to 기존 값이 유지된다'
+      - 'side-effect: revokeUserRole 성공 -> user_role.updated_at 또는 변경 사유 필드가 갱신된다'
+      x-state-transitions:
+      - ACTIVE assignment -> revoked/ended
+      x-roles:
+      - authenticated
+  /api/menus/tree:
+    get:
+      operationId: getMenuTree
+      summary: 메뉴 계층 조회
+      x-related-requirements:
+      - REQ-033
+      - REQ-062
+      responses:
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/MenuTree'
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+      security: *id001
+      x-roles:
+      - authenticated
+  /api/menus/hierarchy:
+    put:
+      operationId: updateMenuHierarchy
+      summary: 메뉴 계층·순서 변경
+      x-related-requirements:
+      - REQ-033
+      - REQ-062
+      responses:
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/MenuTree'
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+      security: *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMenuHierarchyRequest'
+      x-business-rules:
+      - 대메뉴·중메뉴·소메뉴의 부모-자식 관계와 표시 순서를 관리한다
+      - 동일 계층 내 순서를 재정렬한다
+      x-side-effects:
+      - menu.parent_menu_id/display_order를 갱신한다
+      - 후속 메뉴 계층 조회 순서에 반영한다
+      x-required-tests:
+      - 'happy: R09 세션으로 updateMenuHierarchy 요청 성공 -> 후속 조회에서 menu.display_order 변경값이 보인다'
+      - 'auth: R01 교원 세션으로 updateMenuHierarchy 요청 -> HTTP 403을 반환한다'
+      - 'validation: parentMenuId가 자기 자신 -> ApiError.fields에 해당 필드 오류가 포함된다'
+      - 'business: linked requirement의 불변/범위 규칙 위반 -> menu.display_order 기존 값이 유지된다'
+      - 'side-effect: updateMenuHierarchy 성공 -> menu.updated_at 또는 변경 사유 필드가 갱신된다'
+      x-state-transitions:
+      - 기존 parent/order -> 변경 parent/order
+      x-roles:
+      - authenticated
+  /api/menus:
+    get:
+      operationId: listMenus
+      summary: 메뉴 실행정보 조회
+      x-related-requirements:
+      - REQ-034
+      - REQ-062
+      responses:
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/MenuPage'
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+      security: *id001
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: collection pagination/filtering parameter
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: collection pagination/filtering parameter
+      - name: sort
+        in: query
+        required: false
+        schema:
+          type: string
+        description: collection pagination/filtering parameter
+      - name: menuName
+        in: query
+        required: false
+        schema:
+          type: string
+        description: menuName filter
+      - name: screenId
+        in: query
+        required: false
+        schema:
+          type: string
+        description: screenId filter
+      - name: url
+        in: query
+        required: false
+        schema:
+          type: string
+        description: url filter
+      - name: activeYn
+        in: query
+        required: false
+        schema:
+          type: string
+        description: activeYn filter
+      - name: filter
+        in: query
+        required: false
+        schema:
+          type: string
+      x-roles:
+      - authenticated
+    post:
+      operationId: createMenu
+      summary: 메뉴 정보 등록
+      x-related-requirements:
+      - REQ-034
+      - REQ-062
+      responses:
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '201':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/Menu'
+      security: *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MenuRequest'
+      x-business-rules:
+      - 메뉴명·화면ID·URL·아이콘·업무구분·설명을 관리한다
+      - 1차 범위 밖 메뉴를 업무 기능으로 생성하지 않는다
+      x-side-effects:
+      - menu 레코드를 생성한다
+      - menu.created_at/updated_at을 기록한다
+      x-required-tests:
+      - 'happy: R09 세션으로 createMenu 요청 성공 -> 후속 조회에서 menu.screen_id 변경값이 보인다'
+      - 'auth: R01 교원 세션으로 createMenu 요청 -> HTTP 403을 반환한다'
+      - 'validation: url이 /system/... 범위를 벗어남 -> ApiError.fields에 해당 필드 오류가 포함된다'
+      - 'business: linked requirement의 불변/범위 규칙 위반 -> menu.screen_id 기존 값이 유지된다'
+      - 'side-effect: createMenu 성공 -> menu.updated_at 또는 변경 사유 필드가 갱신된다'
+      x-roles:
+      - authenticated
+  /api/menus/{menuId}:
+    put:
+      operationId: updateMenu
+      summary: 메뉴 실행정보 수정
+      x-related-requirements:
+      - REQ-034
+      - REQ-062
+      - REQ-023
+      responses:
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/Menu'
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+      security: *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MenuRequest'
+      x-business-rules:
+      - 사용 중 메뉴는 물리삭제보다 비활성화를 우선한다
+      - 메뉴와 실행 화면 연결 정보를 갱신한다
+      x-side-effects:
+      - menu.menu_name/screen_id/url/icon/business_type/description/active_yn을 갱신한다
+      x-required-tests:
+      - 'happy: R09 세션으로 updateMenu 요청 성공 -> 후속 조회에서 menu.url 변경값이 보인다'
+      - 'auth: R01 교원 세션으로 updateMenu 요청 -> HTTP 403을 반환한다'
+      - 'validation: screenId 공백 -> ApiError.fields에 해당 필드 오류가 포함된다'
+      - 'business: linked requirement의 불변/범위 규칙 위반 -> menu.url 기존 값이 유지된다'
+      - 'side-effect: updateMenu 성공 -> menu.updated_at 또는 변경 사유 필드가 갱신된다'
+      x-state-transitions:
+      - active_yn=Y -> N 가능
+      parameters:
+      - name: menuId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: menuId path parameter
+      x-roles:
+      - authenticated
+  /api/menu-permissions:
+    get:
+      operationId: listMenuPermissions
+      summary: 메뉴 권한 조회
+      x-related-requirements:
+      - REQ-032
+      - REQ-063
+      responses:
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/MenuPermissionPage'
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+      security: *id001
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: collection pagination/filtering parameter
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: collection pagination/filtering parameter
+      - name: sort
+        in: query
+        required: false
+        schema:
+          type: string
+        description: collection pagination/filtering parameter
+      - name: targetType
+        in: query
+        required: false
+        schema:
+          type: string
+        description: targetType filter
+      - name: targetId
+        in: query
+        required: false
+        schema:
+          type: string
+        description: targetId filter
+      - name: menuId
+        in: query
+        required: false
+        schema:
+          type: string
+        description: menuId filter
+      - name: filter
+        in: query
+        required: false
+        schema:
+          type: string
+      x-roles:
+      - authenticated
+    put:
+      operationId: saveMenuPermissions
+      summary: 메뉴 권한 저장
+      x-related-requirements:
+      - REQ-017
+      - REQ-018
+      - REQ-032
+      - REQ-063
+      responses:
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/MenuPermissionSaveResult'
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+      security: *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveMenuPermissionsRequest'
+      x-business-rules:
+      - 역할·조직·사용자 단위로 접근 여부를 설정한다
+      - 화면 미노출과 서버 접근통제는 같은 설정값을 사용한다
+      - 명시적 차단은 허용보다 우선한다
+      x-side-effects:
+      - menu_permission 레코드를 upsert한다
+      - 권한 resolver가 후속 메뉴 노출과 API 403 판정에 같은 값을 사용한다
+      x-required-tests:
+      - 'happy: R09 세션으로 saveMenuPermissions 요청 성공 -> 후속 조회에서 menu_permission.access_allowed_yn 변경값이 보인다'
+      - 'auth: R01 교원 세션으로 saveMenuPermissions 요청 -> HTTP 403을 반환한다'
+      - 'validation: targetType=UNKNOWN -> ApiError.fields에 해당 필드 오류가 포함된다'
+      - 'business: linked requirement의 불변/범위 규칙 위반 -> menu_permission.access_allowed_yn 기존 값이 유지된다'
+      - 'side-effect: saveMenuPermissions 성공 -> menu_permission.updated_at 또는 변경 사유 필드가 갱신된다'
+      x-state-transitions:
+      - 권한 허용 -> 차단 또는 차단 -> 허용
+      x-roles:
+      - authenticated
+  /api/code-groups:
+    get:
+      operationId: listCodeGroups
+      summary: 코드그룹 조회
+      x-related-requirements:
+      - REQ-035
+      - REQ-064
+      responses:
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/CodeGroupPage'
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+      security: *id001
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: collection pagination/filtering parameter
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: collection pagination/filtering parameter
+      - name: sort
+        in: query
+        required: false
+        schema:
+          type: string
+        description: collection pagination/filtering parameter
+      - name: groupId
+        in: query
+        required: false
+        schema:
+          type: string
+        description: groupId filter
+      - name: groupName
+        in: query
+        required: false
+        schema:
+          type: string
+        description: groupName filter
+      - name: managementDepartment
+        in: query
+        required: false
+        schema:
+          type: string
+        description: managementDepartment filter
+      - name: useYn
+        in: query
+        required: false
+        schema:
+          type: string
+        description: useYn filter
+      - name: filter
+        in: query
+        required: false
+        schema:
+          type: string
+      x-roles:
+      - authenticated
+    post:
+      operationId: createCodeGroup
+      summary: 코드그룹 등록
+      x-related-requirements:
+      - REQ-035
+      - REQ-064
+      responses:
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '201':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/CodeGroup'
+      security: *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CodeGroupRequest'
+      x-business-rules:
+      - 코드 묶음의 group_id, 명칭, 설명, 관리부서를 등록한다
+      x-side-effects:
+      - code_group 레코드를 생성한다
+      - created_at/updated_at을 기록한다
+      x-required-tests:
+      - 'happy: R09 세션으로 createCodeGroup 요청 성공 -> 후속 조회에서 code_group.group_id 변경값이 보인다'
+      - 'auth: R01 교원 세션으로 createCodeGroup 요청 -> HTTP 403을 반환한다'
+      - 'validation: groupId 중복 -> ApiError.fields에 해당 필드 오류가 포함된다'
+      - 'business: linked requirement의 불변/범위 규칙 위반 -> code_group.group_id 기존 값이 유지된다'
+      - 'side-effect: createCodeGroup 성공 -> code_group.updated_at 또는 변경 사유 필드가 갱신된다'
+      x-roles:
+      - authenticated
+  /api/code-groups/{groupId}:
+    put:
+      operationId: updateCodeGroup
+      summary: 코드그룹 수정
+      x-related-requirements:
+      - REQ-035
+      - REQ-064
+      responses:
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/CodeGroup'
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+      security: *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CodeGroupRequest'
+      x-business-rules:
+      - group_id는 식별자로 유지하고 명칭·설명·관리부서를 수정한다
+      x-side-effects:
+      - code_group.group_name/description/management_department를 갱신한다
+      x-required-tests:
+      - 'happy: R09 세션으로 updateCodeGroup 요청 성공 -> 후속 조회에서 code_group.group_name 변경값이 보인다'
+      - 'auth: R01 교원 세션으로 updateCodeGroup 요청 -> HTTP 403을 반환한다'
+      - 'validation: groupName 공백 -> ApiError.fields에 해당 필드 오류가 포함된다'
+      - 'business: linked requirement의 불변/범위 규칙 위반 -> code_group.group_name 기존 값이 유지된다'
+      - 'side-effect: updateCodeGroup 성공 -> code_group.updated_at 또는 변경 사유 필드가 갱신된다'
+      parameters:
+      - name: groupId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: groupId path parameter
+      x-roles:
+      - authenticated
+  /api/code-groups/{groupId}/codes:
+    get:
+      operationId: listDetailCodes
+      summary: 상세코드 조회
+      x-related-requirements:
+      - REQ-036
+      - REQ-065
+      responses:
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/DetailCodePage'
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+      security: *id001
+      parameters:
+      - name: groupId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: groupId path parameter
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: collection pagination/filtering parameter
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: collection pagination/filtering parameter
+      - name: sort
+        in: query
+        required: false
+        schema:
+          type: string
+        description: collection pagination/filtering parameter
+      - name: codeValue
+        in: query
+        required: false
+        schema:
+          type: string
+        description: codeValue filter
+      - name: codeName
+        in: query
+        required: false
+        schema:
+          type: string
+        description: codeName filter
+      - name: parentCodeValue
+        in: query
+        required: false
+        schema:
+          type: string
+        description: parentCodeValue filter
+      - name: useYn
+        in: query
+        required: false
+        schema:
+          type: string
+        description: useYn filter
+      x-roles:
+      - authenticated
+    post:
+      operationId: createDetailCode
+      summary: 상세코드 등록
+      x-related-requirements:
+      - REQ-036
+      - REQ-065
+      - REQ-022
+      responses:
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '201':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/DetailCode'
+      security: *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DetailCodeRequest'
+      x-business-rules:
+      - 코드그룹별 코드값·코드명·상위코드·정렬순서·추가속성을 등록한다
+      - 공통코드는 사용여부와 유효기간을 관리한다
+      x-side-effects:
+      - detail_code 레코드를 생성한다
+      - 화면 선택값과 연계 매핑 속성으로 후속 조회에 노출한다
+      x-required-tests:
+      - 'happy: R09 세션으로 createDetailCode 요청 성공 -> 후속 조회에서 detail_code.code_value 변경값이 보인다'
+      - 'auth: R01 교원 세션으로 createDetailCode 요청 -> HTTP 403을 반환한다'
+      - 'validation: sortOrder가 숫자가 아님 -> ApiError.fields에 해당 필드 오류가 포함된다'
+      - 'business: linked requirement의 불변/범위 규칙 위반 -> detail_code.code_value 기존 값이 유지된다'
+      - 'side-effect: createDetailCode 성공 -> detail_code.updated_at 또는 변경 사유 필드가 갱신된다'
+      parameters:
+      - name: groupId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: groupId path parameter
+      x-roles:
+      - authenticated
+  /api/code-groups/{groupId}/codes/{codeValue}:
+    put:
+      operationId: updateDetailCode
+      summary: 상세코드 수정
+      x-related-requirements:
+      - REQ-036
+      - REQ-065
+      - REQ-022
+      - REQ-023
+      responses:
+        '200':
+          description: ApiResponse envelope
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/DetailCode'
+        '400':
+          description: 요청 검증 오류
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 인증 필요
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    error:
+                      $ref: '#/components/schemas/ApiError'
+      security: *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DetailCodeRequest'
+      x-business-rules:
+      - 사용 중인 코드는 물리삭제보다 사용중지 또는 유효기간 종료를 우선한다
+      - 상위코드를 이용한 코드 계층과 연계 코드 매핑 속성을 관리한다
+      x-side-effects:
+      - detail_code.code_name/parent_code_value/sort_order/extra_attributes/use_yn/valid_to를 갱신한다
+      x-required-tests:
+      - 'happy: R09 세션으로 updateDetailCode 요청 성공 -> 후속 조회에서 detail_code.use_yn 변경값이 보인다'
+      - 'auth: R01 교원 세션으로 updateDetailCode 요청 -> HTTP 403을 반환한다'
+      - 'validation: validTo가 validFrom보다 빠름 -> ApiError.fields에 해당 필드 오류가 포함된다'
+      - 'business: linked requirement의 불변/범위 규칙 위반 -> detail_code.use_yn 기존 값이 유지된다'
+      - 'side-effect: updateDetailCode 성공 -> detail_code.updated_at 또는 변경 사유 필드가 갱신된다'
+      x-state-transitions:
+      - use_yn=Y -> N 가능
+      parameters:
+      - name: codeValue
+        in: path
+        required: true
+        schema:
+          type: string
+        description: codeValue path parameter
+      - name: groupId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: groupId path parameter
+      x-roles:
+      - authenticated
+components:
+  securitySchemes:
+    SessionCookieAuth:
+      type: apiKey
+      in: cookie
+      name: SESSION
+      description: HttpOnly SameSite=Lax 내부 세션 쿠키
+  schemas:
+    ApiResponse:
+      type: object
+      required:
+      - success
+      properties:
+        success:
+          type: boolean
+        data:
+          nullable: true
+        error:
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+    ApiError:
+      type: object
+      required:
+      - code
+      - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        fields:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+    RoleCode:
+      type: string
+      enum:
+      - R01
+      - R02
+      - R03
+      - R04
+      - R05
+      - R06
+      - R07
+      - R08
+      - R09
+    UseYn:
+      type: string
+      enum:
+      - Y
+      - N
+    EmploymentStatus:
+      type: string
+      enum:
+      - ACTIVE
+      - LEAVE
+      - RETIRED
+    OrganizationType:
+      type: string
+      enum:
+      - UNIVERSITY
+      - GRADUATE_SCHOOL
+      - COLLEGE
+      - DEPARTMENT
+      - OFFICE
+    AssignmentType:
+      type: string
+      enum:
+      - POSITION_BASED
+      - MANUAL
+    PermissionTargetType:
+      type: string
+      enum:
+      - ROLE
+      - ORGANIZATION
+      - USER
+    SessionStatus:
+      type: string
+      enum:
+      - ACTIVE
+      - EXPIRED
+      - LOGGED_OUT
+    MenuLevel:
+      type: integer
+      enum:
+      - 1
+      - 2
+      - 3
+    EmptyResponse:
+      type: object
+      properties: {}
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: UP
+    LoginRequest:
+      type: object
+      required:
+      - username
+      - password
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+    CurrentUser:
+      type: object
+      properties:
+        userId:
+          type: string
+        username:
+          type: string
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoleCode'
+        menus:
+          type: array
+          items:
+            $ref: '#/components/schemas/Menu'
+    UserSummary:
+      type: object
+      properties:
+        userId:
+          type: string
+        staffNo:
+          type: string
+        staffName:
+          type: string
+        organizationCode:
+          type: string
+        positionName:
+          type: string
+        employmentStatus:
+          $ref: '#/components/schemas/EmploymentStatus'
+        dutyName:
+          type: string
+        retirementDate:
+          type: string
+          format: date
+        lastSyncedAt:
+          type: string
+          format: date-time
+        systemUseYn:
+          $ref: '#/components/schemas/UseYn'
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoleCode'
+    UserPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserSummary'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+    UpdateUserUsageRequest:
+      type: object
+      required:
+      - systemUseYn
+      properties:
+        systemUseYn:
+          $ref: '#/components/schemas/UseYn'
+        changeReason:
+          type: string
+    UpdateUserRolesRequest:
+      type: object
+      required:
+      - roleCodes
+      - approvedBy
+      - validFrom
+      properties:
+        roleCodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoleCode'
+        approvedBy:
+          type: string
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
+        changeReason:
+          type: string
+    Organization:
+      type: object
+      properties:
+        organizationCode:
+          type: string
+        organizationName:
+          type: string
+        organizationType:
+          $ref: '#/components/schemas/OrganizationType'
+        parentOrganizationCode:
+          type: string
+        effectiveStartDate:
+          type: string
+          format: date
+        effectiveEndDate:
+          type: string
+          format: date
+        relationChangeReason:
+          type: string
+        useYn:
+          $ref: '#/components/schemas/UseYn'
+    OrganizationPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Organization'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+    OrganizationTree:
+      type: array
+      items:
+        $ref: '#/components/schemas/Organization'
+    UpdateOrganizationRelationRequest:
+      type: object
+      required:
+      - parentOrganizationCode
+      - effectiveStartDate
+      properties:
+        parentOrganizationCode:
+          type: string
+        effectiveStartDate:
+          type: string
+          format: date
+        effectiveEndDate:
+          type: string
+          format: date
+        relationChangeReason:
+          type: string
+    Role:
+      type: object
+      properties:
+        roleCode:
+          $ref: '#/components/schemas/RoleCode'
+        roleName:
+          type: string
+        purpose:
+          type: string
+        grantCriteria:
+          type: string
+        dataScopeDefault:
+          type: string
+        useYn:
+          $ref: '#/components/schemas/UseYn'
+    RoleList:
+      type: array
+      items:
+        $ref: '#/components/schemas/Role'
+    RoleRequest:
+      type: object
+      required:
+      - roleCode
+      - roleName
+      - purpose
+      - grantCriteria
+      - dataScopeDefault
+      properties:
+        roleCode:
+          $ref: '#/components/schemas/RoleCode'
+        roleName:
+          type: string
+        purpose:
+          type: string
+        grantCriteria:
+          type: string
+        dataScopeDefault:
+          type: string
+        useYn:
+          $ref: '#/components/schemas/UseYn'
+    UserRole:
+      type: object
+      properties:
+        userRoleId:
+          type: integer
+        userId:
+          type: string
+        roleCode:
+          $ref: '#/components/schemas/RoleCode'
+        assignmentType:
+          $ref: '#/components/schemas/AssignmentType'
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
+        approvedBy:
+          type: string
+        useYn:
+          $ref: '#/components/schemas/UseYn'
+    UserRolePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserRole'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+    GrantUserRoleRequest:
+      type: object
+      required:
+      - userId
+      - roleCode
+      - assignmentType
+      - validFrom
+      - approvedBy
+      properties:
+        userId:
+          type: string
+        roleCode:
+          $ref: '#/components/schemas/RoleCode'
+        assignmentType:
+          $ref: '#/components/schemas/AssignmentType'
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
+        approvedBy:
+          type: string
+        changeReason:
+          type: string
+    RevokeUserRoleRequest:
+      type: object
+      required:
+      - userRoleId
+      - validTo
+      - changeReason
+      properties:
+        userRoleId:
+          type: integer
+        validTo:
+          type: string
+          format: date
+        changeReason:
+          type: string
+    Menu:
+      type: object
+      properties:
+        menuId:
+          type: string
+        parentMenuId:
+          type: string
+        menuLevel:
+          $ref: '#/components/schemas/MenuLevel'
+        displayOrder:
+          type: integer
+        menuName:
+          type: string
+        screenId:
+          type: string
+        url:
+          type: string
+        icon:
+          type: string
+        businessType:
+          type: string
+        description:
+          type: string
+        activeYn:
+          $ref: '#/components/schemas/UseYn'
+    MenuTree:
+      type: array
+      items:
+        $ref: '#/components/schemas/Menu'
+    MenuPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Menu'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+    MenuRequest:
+      type: object
+      required:
+      - menuName
+      properties:
+        parentMenuId:
+          type: string
+        menuLevel:
+          $ref: '#/components/schemas/MenuLevel'
+        displayOrder:
+          type: integer
+        menuName:
+          type: string
+        screenId:
+          type: string
+        url:
+          type: string
+        icon:
+          type: string
+        businessType:
+          type: string
+        description:
+          type: string
+        activeYn:
+          $ref: '#/components/schemas/UseYn'
+    UpdateMenuHierarchyRequest:
+      type: object
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required:
+            - menuId
+            - parentMenuId
+            - displayOrder
+            properties:
+              menuId:
+                type: string
+              parentMenuId:
+                type: string
+              displayOrder:
+                type: integer
+    MenuPermission:
+      type: object
+      properties:
+        permissionId:
+          type: integer
+        targetType:
+          $ref: '#/components/schemas/PermissionTargetType'
+        targetId:
+          type: string
+        menuId:
+          type: string
+        accessAllowedYn:
+          $ref: '#/components/schemas/UseYn'
+        explicitDenyYn:
+          $ref: '#/components/schemas/UseYn'
+    MenuPermissionPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MenuPermission'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+    SaveMenuPermissionsRequest:
+      type: object
+      required:
+      - targetType
+      - targetId
+      - permissions
+      properties:
+        targetType:
+          $ref: '#/components/schemas/PermissionTargetType'
+        targetId:
+          type: string
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/MenuPermission'
+    MenuPermissionSaveResult:
+      type: object
+      properties:
+        savedCount:
+          type: integer
+    CodeGroup:
+      type: object
+      properties:
+        groupId:
+          type: string
+        groupName:
+          type: string
+        description:
+          type: string
+        managementDepartment:
+          type: string
+        useYn:
+          $ref: '#/components/schemas/UseYn'
+    CodeGroupPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CodeGroup'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+    CodeGroupRequest:
+      type: object
+      required:
+      - groupId
+      - groupName
+      - managementDepartment
+      properties:
+        groupId:
+          type: string
+        groupName:
+          type: string
+        description:
+          type: string
+        managementDepartment:
+          type: string
+        useYn:
+          $ref: '#/components/schemas/UseYn'
+    DetailCode:
+      type: object
+      properties:
+        groupId:
+          type: string
+        codeValue:
+          type: string
+        codeName:
+          type: string
+        parentCodeValue:
+          type: string
+        sortOrder:
+          type: integer
+        extraAttributes:
+          type: object
+        useYn:
+          $ref: '#/components/schemas/UseYn'
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
+    DetailCodePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DetailCode'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+    DetailCodeRequest:
+      type: object
+      required:
+      - codeValue
+      - codeName
+      - sortOrder
+      properties:
+        codeValue:
+          type: string
+        codeName:
+          type: string
+        parentCodeValue:
+          type: string
+        sortOrder:
+          type: integer
+        extraAttributes:
+          type: object
+        useYn:
+          $ref: '#/components/schemas/UseYn'
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
+x-uncovered-requirements:
+- canonical_id: REQ-001
+  status: covered
+  evidence: backend/frontend/infra 산출물 생성은 관련 API operation의 security/response/테스트 확장으로 반영
+- canonical_id: REQ-002
+  status: covered
+  evidence: 1차 목표 9개 기능 한정은 관련 API operation의 security/response/테스트 확장으로 반영
+- canonical_id: REQ-004
+  status: data-constraint
+  evidence: 로컬 DB 관리 데이터 경계은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-005
+  status: out-of-scope
+  evidence: 업무 데이터 종속 기능 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-006
+  status: out-of-scope
+  evidence: 파일·Excel·개인정보·감사·배치 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-007
+  status: out-of-scope
+  evidence: 범위 밖 메뉴/API 제한은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-024
+  status: covered
+  evidence: 관리 화면 기본 구조은 관련 API operation의 security/response/테스트 확장으로 반영
+- canonical_id: REQ-025
+  status: covered
+  evidence: 서버 입력 검증은 관련 API operation의 security/response/테스트 확장으로 반영
+- canonical_id: REQ-026
+  status: covered
+  evidence: 상대경로 API 사용은 관련 API operation의 security/response/테스트 확장으로 반영
+- canonical_id: REQ-027
+  status: covered
+  evidence: 시드 관리자 전체 메뉴 테스트은 관련 API operation의 security/response/테스트 확장으로 반영
+- canonical_id: REQ-037
+  status: non-functional
+  evidence: Backend 기술 스택은 plan.md/공통 계약 참조의 기술·산출물 제약이다
+- canonical_id: REQ-038
+  status: non-functional
+  evidence: Frontend 기술 스택은 plan.md/공통 계약 참조의 기술·산출물 제약이다
+- canonical_id: REQ-039
+  status: non-functional
+  evidence: Docker Compose와 Flyway 제공은 plan.md/공통 계약 참조의 기술·산출물 제약이다
+- canonical_id: REQ-040
+  status: non-functional
+  evidence: 브라우저 상대경로 API은 plan.md/공통 계약 참조의 기술·산출물 제약이다
+- canonical_id: REQ-041
+  status: non-functional
+  evidence: 로컬 대표 흐름 검증은 plan.md/공통 계약 참조의 기술·산출물 제약이다
+- canonical_id: REQ-042
+  status: non-functional
+  evidence: 외부 연계 없는 로컬 실행은 plan.md/공통 계약 참조의 기술·산출물 제약이다
+- canonical_id: REQ-043
+  status: non-functional
+  evidence: Port/Adapter 확장 경계은 plan.md/공통 계약 참조의 기술·산출물 제약이다
+- canonical_id: REQ-044
+  status: data-constraint
+  evidence: 사용자 계정 테이블 분리은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-045
+  status: data-constraint
+  evidence: KORUS 교직원 Mock snapshot 테이블 분리은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-046
+  status: data-constraint
+  evidence: 조직 테이블 분리은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-047
+  status: data-constraint
+  evidence: 보직 또는 조직 사용자 매핑 테이블 분리은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-048
+  status: data-constraint
+  evidence: 역할 테이블 분리은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-049
+  status: data-constraint
+  evidence: 사용자 역할 테이블 분리은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-050
+  status: data-constraint
+  evidence: 메뉴 테이블 분리은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-051
+  status: data-constraint
+  evidence: 메뉴 권한 테이블 분리은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-052
+  status: data-constraint
+  evidence: 코드그룹 테이블 분리은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-053
+  status: data-constraint
+  evidence: 상세코드 테이블 분리은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-054
+  status: data-constraint
+  evidence: 세션 테이블 분리은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-055
+  status: data-constraint
+  evidence: 공통 추적 필드은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-068
+  status: screen-only
+  evidence: 로그인 화면 생성은 ui-design.md/browser route에서 검증될 화면 요구다
+- canonical_id: REQ-069
+  status: screen-only
+  evidence: 사용자 관리 화면 생성은 ui-design.md/browser route에서 검증될 화면 요구다
+- canonical_id: REQ-070
+  status: screen-only
+  evidence: 조직 관리 화면 생성은 ui-design.md/browser route에서 검증될 화면 요구다
+- canonical_id: REQ-071
+  status: screen-only
+  evidence: 역할 관리 화면 생성은 ui-design.md/browser route에서 검증될 화면 요구다
+- canonical_id: REQ-072
+  status: screen-only
+  evidence: 사용자 역할 관리 화면 생성은 ui-design.md/browser route에서 검증될 화면 요구다
+- canonical_id: REQ-073
+  status: screen-only
+  evidence: 메뉴 권한 관리 화면 생성은 ui-design.md/browser route에서 검증될 화면 요구다
+- canonical_id: REQ-074
+  status: screen-only
+  evidence: 메뉴 구조 관리 화면 생성은 ui-design.md/browser route에서 검증될 화면 요구다
+- canonical_id: REQ-075
+  status: screen-only
+  evidence: 메뉴 정보 관리 화면 생성은 ui-design.md/browser route에서 검증될 화면 요구다
+- canonical_id: REQ-076
+  status: screen-only
+  evidence: 코드그룹 관리 화면 생성은 ui-design.md/browser route에서 검증될 화면 요구다
+- canonical_id: REQ-077
+  status: screen-only
+  evidence: 상세코드 관리 화면 생성은 ui-design.md/browser route에서 검증될 화면 요구다
+- canonical_id: REQ-078
+  status: screen-only
+  evidence: 관리 화면 검색조건 영역은 ui-design.md/browser route에서 검증될 화면 요구다
+- canonical_id: REQ-079
+  status: screen-only
+  evidence: 관리 화면 목록 테이블은 ui-design.md/browser route에서 검증될 화면 요구다
+- canonical_id: REQ-080
+  status: screen-only
+  evidence: 관리 화면 선택 행 상세 또는 편집 폼은 ui-design.md/browser route에서 검증될 화면 요구다
+- canonical_id: REQ-081
+  status: screen-only
+  evidence: 관리 화면 저장/취소 버튼은 ui-design.md/browser route에서 검증될 화면 요구다
+- canonical_id: REQ-082
+  status: screen-only
+  evidence: 관리 화면 성공/오류 메시지은 ui-design.md/browser route에서 검증될 화면 요구다
+- canonical_id: REQ-083
+  status: screen-only
+  evidence: 관리 화면 권한 없음 상태 표시은 ui-design.md/browser route에서 검증될 화면 요구다
+- canonical_id: REQ-084
+  status: screen-only
+  evidence: 관리 화면 로딩 상태 표시은 ui-design.md/browser route에서 검증될 화면 요구다
+- canonical_id: REQ-088
+  status: data-constraint
+  evidence: 시드 계정 문서화은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-089
+  status: data-constraint
+  evidence: R01~R09 역할 시드은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-090
+  status: data-constraint
+  evidence: 시스템 관리 대메뉴 시드은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-091
+  status: data-constraint
+  evidence: 사용자·조직 관리 중메뉴 시드은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-092
+  status: data-constraint
+  evidence: 역할·권한 관리 중메뉴 시드은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-093
+  status: data-constraint
+  evidence: 메뉴 관리 중메뉴 시드은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-094
+  status: data-constraint
+  evidence: 공통코드 관리 중메뉴 시드은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-095
+  status: data-constraint
+  evidence: 9개 소메뉴 시드은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-096
+  status: data-constraint
+  evidence: 9개 화면 R09 접근 권한 시드은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-097
+  status: data-constraint
+  evidence: 예시 조직 시드은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-098
+  status: data-constraint
+  evidence: 예시 사용자 시드은 data-model.md 테이블/field/seed 제약으로 반영되며 단독 operation이 아니다
+- canonical_id: REQ-099
+  status: out-of-scope
+  evidence: 업무담당자 관리 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-100
+  status: out-of-scope
+  evidence: 기능 권한 관리 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-101
+  status: out-of-scope
+  evidence: 데이터 범위 권한 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-102
+  status: out-of-scope
+  evidence: 기간별 권한 관리 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-103
+  status: out-of-scope
+  evidence: 임시 권한 관리 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-104
+  status: out-of-scope
+  evidence: 권한 변경 이력 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-105
+  status: out-of-scope
+  evidence: 메뉴 사용 관리 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-106
+  status: out-of-scope
+  evidence: 코드 사용 관리 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-107
+  status: out-of-scope
+  evidence: 공통 환경설정 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-108
+  status: out-of-scope
+  evidence: 기준연도 관리 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-109
+  status: out-of-scope
+  evidence: 파일정책 관리 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-110
+  status: out-of-scope
+  evidence: 메시지 관리 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-111
+  status: out-of-scope
+  evidence: 공지사항 관리 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-112
+  status: out-of-scope
+  evidence: 도움말 관리 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-113
+  status: out-of-scope
+  evidence: 매뉴얼 관리 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-114
+  status: out-of-scope
+  evidence: 첨부파일 관리 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-115
+  status: out-of-scope
+  evidence: Excel 관리 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-116
+  status: out-of-scope
+  evidence: 개인정보 관리 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-117
+  status: out-of-scope
+  evidence: 접속기록 관리 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-118
+  status: out-of-scope
+  evidence: 감사로그 관리 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-119
+  status: out-of-scope
+  evidence: 배치작업 관리 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-120
+  status: out-of-scope
+  evidence: 평가규칙, 평가기간, 상태승인, 점수산출, 업무보고서, 학술지원금 신청 등 업무 데이터 종속 기능 제외은 1차 HTTP API로 노출하지 않는 제외 범위다
+- canonical_id: REQ-121
+  status: non-functional
+  evidence: Version BOM spring_boot은 plan.md/공통 계약 참조의 기술·산출물 제약이다
+- canonical_id: REQ-122
+  status: non-functional
+  evidence: Version BOM node은 plan.md/공통 계약 참조의 기술·산출물 제약이다
+- canonical_id: REQ-123
+  status: non-functional
+  evidence: Version BOM vite은 plan.md/공통 계약 참조의 기술·산출물 제약이다
+- canonical_id: REQ-124
+  status: non-functional
+  evidence: Version BOM react은 plan.md/공통 계약 참조의 기술·산출물 제약이다
+- canonical_id: REQ-125
+  status: non-functional
+  evidence: Version BOM postgres은 plan.md/공통 계약 참조의 기술·산출물 제약이다
+- canonical_id: REQ-126
+  status: non-functional
+  evidence: 필수 산출물 backend_dir은 plan.md/공통 계약 참조의 기술·산출물 제약이다
+- canonical_id: REQ-127
+  status: non-functional
+  evidence: 필수 산출물 frontend_dir은 plan.md/공통 계약 참조의 기술·산출물 제약이다
+- canonical_id: REQ-128
+  status: non-functional
+  evidence: 필수 산출물 compose_file은 plan.md/공통 계약 참조의 기술·산출물 제약이다
+x-shared-contract-reference:
+  technology_stack:
+  - Java 17
+  - Spring Boot 3.3.x
+  - Maven
+  - MyBatis
+  - PostgreSQL 16
+  - React 18
+  - TypeScript
+  - Vite 5
+  - Docker Compose
+  version_bom:
+    spring_boot: 3.3.x
+    node: 20.x
+    vite: 5.x
+    react: 18.x
+    postgres: 16.x
+  required_outputs:
+    backend_dir: backend
+    frontend_dir: frontend
+    compose_file: infra/docker-compose.yml
+    health_endpoint: /api/health
+  execution_persistence: imperative/mybatis/blocking; plan.md marker JSON is semantic SSOT

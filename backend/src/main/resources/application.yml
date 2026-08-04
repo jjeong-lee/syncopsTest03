@@ -1,0 +1,23 @@
+server:
+  port: 8080
+spring:
+  application:
+    name: faculty-performance-common
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://database:5432/fpe_common}
+    username: ${DB_USERNAME:fpe_app}
+    password: ${DB_PASSWORD:fpe_app_password}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  jackson:
+    default-property-inclusion: non_null
+mybatis:
+  mapper-locations: classpath:mappers/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+app:
+  session:
+    cookie-name: SESSION
+    ttl-hours: 8

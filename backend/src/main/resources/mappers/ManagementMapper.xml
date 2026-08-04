@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.ac.knue.fpe.persistence.ManagementMapper">
+  <select id="findUserByUsername" resultType="map">
+    SELECT user_id as "userId", staff_no as "staffNo", username, password_hash as "passwordHash", system_use_yn as "systemUseYn", use_yn as "useYn"
+    FROM user_account WHERE username = #{username} AND use_yn = 'Y'
+  </select>
+  <select id="findActiveSession" resultType="map">
+    SELECT s.session_id as "sessionId", s.user_id as "userId", u.username
+    FROM session s JOIN user_account u ON u.user_id = s.user_id
+    WHERE s.session_id = #{sessionId} AND s.status = 'ACTIVE' AND s.expires_at > CURRENT_TIMESTAMP AND u.use_yn='Y' AND u.system_use_yn='Y'
+  </select>
+  <insert id="insertSession">
+    INSERT INTO session(session_id, user_id, status, expires_at, last_accessed_at) VALUES (#{sessionId}, #{userId}, 'ACTIVE', #{expiresAt}, CURRENT_TIMESTAMP)
+  </insert>
+  <update id="touchSession">UPDATE session SET last_accessed_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP WHERE session_id=#{sessionId}</update>
+  <update id="logoutSession">UPDATE session SET status='LOGGED_OUT', updated_at=CURRENT_TIMESTAMP WHERE session_id=#{sessionId}</update>
+  <select id="selectRolesForUser" resultType="string">
+    SELECT DISTINCT role_code FROM user_role
+    WHERE user_id = #{userId} AND use_yn='Y' AND valid_from &lt;= CURRENT_DATE AND (valid_to IS NULL OR valid_to &gt;= CURRENT_DATE)
+    ORDER BY role_code
+  </select>
+  <select id="selectMenusForUser" resultType="map">
+    SELECT DISTINCT m.menu_id as "menuId", m.parent_menu_id as "parentMenuId", m.menu_level as "menuLevel", m.display_order as "displayOrder", m.menu_name as "menuName", m.screen_id as "screenId", m.url, m.icon, m.business_type as "businessType", m.description, m.active_yn as "activeYn"
+    FROM menu m
+    JOIN menu_permission p ON p.menu_id=m.menu_id AND p.target_type='ROLE' AND p.access_allowed_yn='Y' AND p.explicit_deny_yn='N' AND p.use_yn='Y'
+    JOIN user_role ur ON ur.role_code=p.target_id AND ur.user_id=#{userId} AND ur.use_yn='Y' AND ur.valid_from &lt;= CURRENT_DATE AND (ur.valid_to IS NULL OR ur.valid_to &gt;= CURRENT_DATE)
+    WHERE m.use_yn='Y' AND m.active_yn='Y'
+    ORDER BY m.menu_level, m.parent_menu_id, m.display_order
+  </select>
+  <select id="searchReadonlyStaff" resultType="map">
+    SELECT staff_no as "staffNo", staff_name as "staffName", organization_code as "organizationCode", position_name as "positionName", employment_status as "employmentStatus", duty_name as "dutyName", retirement_date as "retirementDate", last_synced_at as "lastSyncedAt"
+    FROM korus_staff_snapshot
+    <where>
+      use_yn='Y'
+      <if test="staffNo != null and staffNo != ''">AND staff_no = #{staffNo}</if>
+      <if test="staffName != null and staffName != ''">AND staff_name LIKE CONCAT('%', #{staffName}, '%')</if>
+      <if test="organizationCode != null and organizationCode != ''">AND organization_code = #{organizationCode}</if>
+    </where>
+  </select>
+  <select id="searchUsers" parameterType="map" resultType="map">
+    SELECT u.user_id as "userId", k.staff_no as "staffNo", k.staff_name as "staffName", k.organization_code as "organizationCode", o.organization_name as "organizationName", k.position_name as "positionName", k.employment_status as "employmentStatus", k.duty_name as "dutyName", k.retirement_date as "retirementDate", k.last_synced_at as "lastSyncedAt", u.system_use_yn as "systemUseYn"
+    FROM user_account u JOIN korus_staff_snapshot k ON k.staff_no=u.staff_no JOIN organization o ON o.organization_code=k.organization_code
+    <where>
+      u.use_yn='Y'
+      <if test="userId != null and userId != ''">AND u.user_id = #{userId}</if>
+      <if test="staffNo != null and staffNo != ''">AND k.staff_no = #{staffNo}</if>
+      <if test="staffName != null and staffName != ''">AND k.staff_name LIKE CONCAT('%', #{staffName}, '%')</if>
+      <if test="organizationCode != null and organizationCode != ''">AND k.organization_code = #{organizationCode}</if>
+      <if test="positionName != null and positionName != ''">AND k.position_name LIKE CONCAT('%', #{positionName}, '%')</if>
+      <if test="employmentStatus != null and employmentStatus != ''">AND k.employment_status = #{employmentStatus}</if>
+      <if test="systemUseYn != null and systemUseYn != ''">AND u.system_use_yn = #{systemUseYn}</if>
+      <if test="roleCode != null and roleCode != ''">AND EXISTS (SELECT 1 FROM user_role ur WHERE ur.user_id=u.user_id AND ur.role_code=#{roleCode} AND ur.use_yn='Y')</if>
+      <if test="filter != null and filter != ''">AND (k.staff_name LIKE CONCAT('%', #{filter}, '%') OR k.staff_no LIKE CONCAT('%', #{filter}, '%'))</if>
+    </where>
+    ORDER BY k.staff_no
+  </select>
+  <update id="updateUserUsage">UPDATE user_account SET system_use_yn=#{systemUseYn}, change_reason=#{changeReason}, updated_at=CURRENT_TIMESTAMP WHERE user_id=#{userId}</update>
+  <update id="endManualUserRoles">UPDATE user_role SET use_yn='N', valid_to=COALESCE(valid_to, CURRENT_DATE), change_reason=#{changeReason}, updated_at=CURRENT_TIMESTAMP WHERE user_id=#{userId} AND assignment_type='MANUAL' AND use_yn='Y'</update>
+  <insert id="insertUserRole">INSERT INTO user_role(user_id,role_code,assignment_type,valid_from,valid_to,approved_by,change_reason) VALUES(#{userId},#{roleCode},#{assignmentType},#{validFrom},#{validTo},#{approvedBy},#{changeReason})</insert>
+  <select id="searchOrganizations" parameterType="map" resultType="map">
+    SELECT organization_code as "organizationCode", organization_name as "organizationName", organization_type as "organizationType", parent_organization_code as "parentOrganizationCode", effective_start_date as "effectiveStartDate", effective_end_date as "effectiveEndDate", relation_change_reason as "relationChangeReason", use_yn as "useYn"
+    FROM organization
+    <where>
+      1=1
+      <if test="organizationCode != null and organizationCode != ''">AND organization_code = #{organizationCode}</if>
+      <if test="organizationName != null and organizationName != ''">AND organization_name LIKE CONCAT('%', #{organizationName}, '%')</if>
+      <if test="organizationType != null and organizationType != ''">AND organization_type = #{organizationType}</if>
+      <if test="useYn != null and useYn != ''">AND use_yn = #{useYn}</if>
+      <if test="filter != null and filter != ''">AND (organization_code LIKE CONCAT('%', #{filter}, '%') OR organization_name LIKE CONCAT('%', #{filter}, '%'))</if>
+    </where>
+    ORDER BY organization_code
+  </select>
+  <select id="organizationTree" resultType="map">SELECT organization_code as "organizationCode", organization_name as "organizationName", organization_type as "organizationType", parent_organization_code as "parentOrganizationCode", effective_start_date as "effectiveStartDate", effective_end_date as "effectiveEndDate", relation_change_reason as "relationChangeReason", use_yn as "useYn" FROM organization WHERE use_yn='Y' ORDER BY parent_organization_code NULLS FIRST, organization_code</select>
+  <update id="updateOrganizationRelation">UPDATE organization SET parent_organization_code=#{parentOrganizationCode}, effective_start_date=#{effectiveStartDate}, effective_end_date=#{effectiveEndDate}, relation_change_reason=#{relationChangeReason}, updated_at=CURRENT_TIMESTAMP WHERE organization_code=#{organizationCode}</update>
+  <select id="listRoles" resultType="map">SELECT role_code as "roleCode", role_name as "roleName", purpose, grant_criteria as "grantCriteria", data_scope_default as "dataScopeDefault", use_yn as "useYn" FROM role <where><if test="filter != null and filter != ''">role_code LIKE CONCAT('%', #{filter}, '%') OR role_name LIKE CONCAT('%', #{filter}, '%')</if></where> ORDER BY role_code</select>
+  <insert id="upsertRole" parameterType="map">INSERT INTO role(role_code,role_name,purpose,grant_criteria,data_scope_default,use_yn) VALUES(#{roleCode},#{roleName},#{purpose},#{grantCriteria},#{dataScopeDefault},COALESCE(#{useYn},'Y')) ON CONFLICT(role_code) DO UPDATE SET role_name=EXCLUDED.role_name,purpose=EXCLUDED.purpose,grant_criteria=EXCLUDED.grant_criteria,data_scope_default=EXCLUDED.data_scope_default,use_yn=EXCLUDED.use_yn,updated_at=CURRENT_TIMESTAMP</insert>
+  <update id="updateRole">UPDATE role SET role_name=#{param2.roleName}, purpose=#{param2.purpose}, grant_criteria=#{param2.grantCriteria}, data_scope_default=#{param2.dataScopeDefault}, use_yn=COALESCE(#{param2.useYn}, use_yn), updated_at=CURRENT_TIMESTAMP WHERE role_code=#{roleCode}</update>
+  <select id="listUserRoles" parameterType="map" resultType="map">SELECT user_role_id as "userRoleId", user_id as "userId", role_code as "roleCode", assignment_type as "assignmentType", valid_from as "validFrom", valid_to as "validTo", approved_by as "approvedBy", use_yn as "useYn" FROM user_role <where><if test="userId != null and userId != ''">AND user_id=#{userId} </if><if test="roleCode != null and roleCode != ''">AND role_code=#{roleCode} </if><if test="assignmentType != null and assignmentType != ''">AND assignment_type=#{assignmentType} </if><if test="validOn != null and validOn != ''">AND valid_from &lt;= CAST(#{validOn} AS date) AND (valid_to IS NULL OR valid_to &gt;= CAST(#{validOn} AS date)) </if></where> ORDER BY user_id, role_code, valid_from DESC</select>
+  <select id="findUserRole" resultType="map">SELECT user_role_id as "userRoleId", user_id as "userId", role_code as "roleCode", assignment_type as "assignmentType", valid_from as "validFrom", valid_to as "validTo", approved_by as "approvedBy", use_yn as "useYn" FROM user_role WHERE user_role_id=#{userRoleId}</select>
+  <update id="revokeUserRole">UPDATE user_role SET valid_to=#{validTo}, use_yn='N', change_reason=#{changeReason}, updated_at=CURRENT_TIMESTAMP WHERE user_role_id=#{userRoleId}</update>
+  <select id="menuTree" resultType="map">SELECT menu_id as "menuId", parent_menu_id as "parentMenuId", menu_level as "menuLevel", display_order as "displayOrder", menu_name as "menuName", screen_id as "screenId", url, icon, business_type as "businessType", description, active_yn as "activeYn" FROM menu WHERE use_yn='Y' ORDER BY menu_level, parent_menu_id NULLS FIRST, display_order</select>
+  <select id="listMenus" parameterType="map" resultType="map">SELECT menu_id as "menuId", parent_menu_id as "parentMenuId", menu_level as "menuLevel", display_order as "displayOrder", menu_name as "menuName", screen_id as "screenId", url, icon, business_type as "businessType", description, active_yn as "activeYn" FROM menu <where>use_yn='Y' <if test="menuId != null and menuId != ''">AND menu_id=#{menuId} </if><if test="menuName != null and menuName != ''">AND menu_name LIKE CONCAT('%', #{menuName}, '%') </if><if test="screenId != null and screenId != ''">AND screen_id=#{screenId} </if><if test="url != null and url != ''">AND url LIKE CONCAT('%', #{url}, '%') </if><if test="activeYn != null and activeYn != ''">AND active_yn=#{activeYn} </if></where> ORDER BY menu_level, parent_menu_id NULLS FIRST, display_order</select>
+  <insert id="insertMenu">INSERT INTO menu(menu_id,parent_menu_id,menu_level,display_order,menu_name,screen_id,url,icon,business_type,description,active_yn) VALUES(#{menuId},#{param2.parentMenuId},COALESCE(#{param2.menuLevel},3),COALESCE(#{param2.displayOrder},99),#{param2.menuName},#{param2.screenId},#{param2.url},#{param2.icon},#{param2.businessType},#{param2.description},COALESCE(#{param2.activeYn},'Y'))</insert>
+  <update id="updateMenu">UPDATE menu SET parent_menu_id=#{param2.parentMenuId}, menu_level=COALESCE(#{param2.menuLevel}, menu_level), display_order=COALESCE(#{param2.displayOrder}, display_order), menu_name=#{param2.menuName}, screen_id=#{param2.screenId}, url=#{param2.url}, icon=#{param2.icon}, business_type=#{param2.businessType}, description=#{param2.description}, active_yn=COALESCE(#{param2.activeYn}, active_yn), updated_at=CURRENT_TIMESTAMP WHERE menu_id=#{menuId}</update>
+  <update id="updateMenuHierarchy">UPDATE menu SET parent_menu_id=#{parentMenuId}, display_order=#{displayOrder}, updated_at=CURRENT_TIMESTAMP WHERE menu_id=#{menuId}</update>
+  <select id="listMenuPermissions" parameterType="map" resultType="map">SELECT permission_id as "permissionId", target_type as "targetType", target_id as "targetId", menu_id as "menuId", access_allowed_yn as "accessAllowedYn", explicit_deny_yn as "explicitDenyYn" FROM menu_permission <where>use_yn='Y' <if test="targetType != null and targetType != ''">AND target_type=#{targetType} </if><if test="targetId != null and targetId != ''">AND target_id=#{targetId} </if><if test="menuId != null and menuId != ''">AND menu_id=#{menuId} </if></where> ORDER BY target_type,target_id,menu_id</select>
+  <insert id="upsertMenuPermission" parameterType="map">INSERT INTO menu_permission(target_type,target_id,menu_id,access_allowed_yn,explicit_deny_yn) VALUES(#{targetType},#{targetId},#{menuId},#{accessAllowedYn},#{explicitDenyYn}) ON CONFLICT(target_type,target_id,menu_id) DO UPDATE SET access_allowed_yn=EXCLUDED.access_allowed_yn, explicit_deny_yn=EXCLUDED.explicit_deny_yn, updated_at=CURRENT_TIMESTAMP, use_yn='Y'</insert>
+  <select id="listCodeGroups" parameterType="map" resultType="map">SELECT group_id as "groupId", group_name as "groupName", description, management_department as "managementDepartment", use_yn as "useYn" FROM code_group <where>1=1 <if test="groupId != null and groupId != ''">AND group_id=#{groupId} </if><if test="groupName != null and groupName != ''">AND group_name LIKE CONCAT('%', #{groupName}, '%') </if><if test="managementDepartment != null and managementDepartment != ''">AND management_department LIKE CONCAT('%', #{managementDepartment}, '%') </if><if test="useYn != null and useYn != ''">AND use_yn=#{useYn} </if></where> ORDER BY group_id</select>
+  <insert id="insertCodeGroup" parameterType="map">INSERT INTO code_group(group_id,group_name,description,management_department,use_yn) VALUES(#{groupId},#{groupName},#{description},#{managementDepartment},COALESCE(#{useYn},'Y'))</insert>
+  <update id="updateCodeGroup">UPDATE code_group SET group_name=#{param2.groupName}, description=#{param2.description}, management_department=#{param2.managementDepartment}, use_yn=COALESCE(#{param2.useYn}, use_yn), updated_at=CURRENT_TIMESTAMP WHERE group_id=#{groupId}</update>
+  <select id="listDetailCodes" parameterType="map" resultType="map">SELECT group_id as "groupId", code_value as "codeValue", code_name as "codeName", parent_code_value as "parentCodeValue", sort_order as "sortOrder", extra_attributes as "extraAttributes", use_yn as "useYn", valid_from as "validFrom", valid_to as "validTo" FROM detail_code <where>group_id=#{groupId} <if test="codeValue != null and codeValue != ''">AND code_value=#{codeValue} </if><if test="codeName != null and codeName != ''">AND code_name LIKE CONCAT('%', #{codeName}, '%') </if><if test="parentCodeValue != null and parentCodeValue != ''">AND parent_code_value=#{parentCodeValue} </if><if test="useYn != null and useYn != ''">AND use_yn=#{useYn} </if></where> ORDER BY sort_order, code_value</select>
+  <insert id="insertDetailCode">INSERT INTO detail_code(group_id,code_value,code_name,parent_code_value,sort_order,extra_attributes,use_yn,valid_from,valid_to) VALUES(#{groupId},#{param2.codeValue},#{param2.codeName},#{param2.parentCodeValue},#{param2.sortOrder},CAST(#{param2.extraAttributes} AS jsonb),COALESCE(#{param2.useYn},'Y'),CAST(#{param2.validFrom} AS date),CAST(#{param2.validTo} AS date))</insert>
+  <update id="updateDetailCode">UPDATE detail_code SET code_name=#{param3.codeName}, parent_code_value=#{param3.parentCodeValue}, sort_order=#{param3.sortOrder}, extra_attributes=CAST(#{param3.extraAttributes} AS jsonb), use_yn=COALESCE(#{param3.useYn}, use_yn), valid_from=CAST(#{param3.validFrom} AS date), valid_to=CAST(#{param3.validTo} AS date), updated_at=CURRENT_TIMESTAMP WHERE group_id=#{groupId} AND code_value=#{codeValue}</update>
+</mapper>
