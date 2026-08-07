@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: common-functions
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://database:5432/fpe_common}
+    username: ${SPRING_DATASOURCE_USERNAME:fpe_app}
+    password: ${SPRING_DATASOURCE_PASSWORD:fpe_password}
+  flyway:
+    enabled: true
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 25MB
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+server:
+  port: 8080
+app:
+  session-cookie-name: AIOPS_SESSION
+  attachment-root: ${APP_ATTACHMENT_ROOT:/var/app/attachments}
+  local-admin-password: ${APP_LOCAL_ADMIN_PASSWORD:admin}
