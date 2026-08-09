@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.ac.knue.facultyassessment.users.UserManagementMapper">
+  <select id="findUsers" resultType="kr.ac.knue.facultyassessment.users.UserManagementService$UserSummary">
+    SELECT
+      ua.user_id AS "userId",
+      kps.personnel_no AS "personnelNo",
+      kps.name AS "name",
+      o.organization_name AS "organization",
+      kps.position_name AS "position",
+      kps.employment_status AS "employmentStatus",
+      NULL AS "roleCodes",
+      ua.use_yn AS "useYn",
+      oum.position_name AS "positionTitle",
+      kps.retirement_date AS "retirementDate",
+      kps.last_synced_at AS "lastSyncedAt"
+    FROM user_account ua
+    JOIN korus_personnel_snapshot kps ON kps.personnel_no = ua.personnel_no
+    LEFT JOIN organization o ON o.organization_code = kps.organization_code
+    LEFT JOIN organization_user_mapping oum ON oum.user_id = ua.user_id AND oum.use_yn = 'Y'
+    <where>
+      <if test="criteria.personnelNo != null and criteria.personnelNo != ''">
+        AND kps.personnel_no LIKE CONCAT('%', #{criteria.personnelNo}, '%')
+      </if>
+      <if test="criteria.name != null and criteria.name != ''">
+        AND kps.name LIKE CONCAT('%', #{criteria.name}, '%')
+      </if>
+      <if test="criteria.organization != null and criteria.organization != ''">
+        AND o.organization_name LIKE CONCAT('%', #{criteria.organization}, '%')
+      </if>
+      <if test="criteria.position != null and criteria.position != ''">
+        AND kps.position_name = #{criteria.position}
+      </if>
+      <if test="criteria.employmentStatus != null and criteria.employmentStatus != ''">
+        AND kps.employment_status = #{criteria.employmentStatus}
+      </if>
+      <if test="criteria.roleCode != null and criteria.roleCode != ''">
+        AND EXISTS (
+          SELECT 1 FROM user_role ur
+          WHERE ur.user_id = ua.user_id
+            AND ur.role_code = #{criteria.roleCode}
+            AND ur.status = 'ACTIVE'
+            AND ur.effective_start_date &lt;= current_date
+            AND (ur.effective_end_date IS NULL OR ur.effective_end_date >= current_date)
+        )
+      </if>
+      <if test="criteria.useYn != null and criteria.useYn != ''">
+        AND ua.use_yn = #{criteria.useYn}
+      </if>
+    </where>
+    ORDER BY kps.personnel_no
+  </select>
+
+  <select id="findRoleCodesByUserId" resultType="string">
+    SELECT role_code
+    FROM user_role
+    WHERE user_id = #{userId}
+      AND status = 'ACTIVE'
+      AND effective_start_date &lt;= current_date
+      AND (effective_end_date IS NULL OR effective_end_date >= current_date)
+    ORDER BY role_code
+  </select>
+
+  <select id="findLocalSettings" resultType="kr.ac.knue.facultyassessment.users.UserManagementService$LocalUserSettings">
+    SELECT ua.user_id AS "userId", ua.use_yn AS "useYn"
+    FROM user_account ua
+    WHERE ua.user_id = #{userId}
+  </select>
+
+  <update id="updateUseYn">
+    UPDATE user_account
+    SET use_yn = #{useYn}, updated_at = current_timestamp
+    WHERE user_id = #{userId}
+  </update>
+
+  <update id="deactivateRolesByUserId">
+    UPDATE user_role
+    SET status = 'REVOKED', updated_at = current_timestamp
+    WHERE user_id = #{userId} AND status = 'ACTIVE'
+  </update>
+
+  <insert id="insertUserRole">
+    INSERT INTO user_role (
+      user_role_id, user_id, role_code, approval_user_id, effective_start_date, assignment_type, status
+    ) VALUES (
+      #{userRoleId}, #{userId}, #{roleCode}, #{actorUserId}, current_date, 'MANUAL', 'ACTIVE'
+    )
+  </insert>
+
+  <insert id="insertChangeHistory">
+    INSERT INTO change_history (
+      change_history_id, entity_name, entity_id, before_value, after_value, actor_user_id, changed_at, reason, status
+    ) VALUES (
+      #{changeHistoryId}, #{entityName}, #{entityId}, CAST(#{beforeValue} AS jsonb), CAST(#{afterValue} AS jsonb),
+      #{actorUserId}, current_timestamp, #{reason}, 'RECORDED'
+    )
+  </insert>
+</mapper>

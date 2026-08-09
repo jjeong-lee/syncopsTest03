@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.ac.knue.facultyassessment.organizations.OrganizationManagementMapper">
+  <select id="findOrganizations" resultType="kr.ac.knue.facultyassessment.organizations.OrganizationManagementService$OrganizationRow">
+    SELECT
+      o.organization_id AS "organizationId",
+      o.organization_code AS "organizationCode",
+      o.organization_name AS "organizationName",
+      o.organization_type AS "organizationType",
+      relationship.parent_organization_id AS "parentOrganizationId",
+      parent.organization_code AS "parentOrganizationCode",
+      parent.organization_name AS "parentOrganizationName",
+      relationship.effective_start_date AS "effectiveStartDate",
+      relationship.effective_end_date AS "effectiveEndDate"
+    FROM organization o
+    LEFT JOIN organization_relationship relationship
+      ON relationship.organization_id = o.organization_id
+      AND relationship.status = 'ACTIVE'
+    LEFT JOIN organization parent ON parent.organization_id = relationship.parent_organization_id
+    <where>
+      <if test="criteria.organizationCode != null and criteria.organizationCode != ''">
+        o.organization_code LIKE CONCAT('%', #{criteria.organizationCode}, '%')
+      </if>
+    </where>
+    ORDER BY o.organization_code
+  </select>
+
+  <select id="findRelationship" resultType="kr.ac.knue.facultyassessment.organizations.OrganizationManagementService$OrganizationRelationship">
+    SELECT
+      organization_relationship_id AS "organizationRelationshipId",
+      organization_id AS "organizationId",
+      parent_organization_id AS "parentOrganizationId",
+      effective_start_date AS "effectiveStartDate",
+      effective_end_date AS "effectiveEndDate"
+    FROM organization_relationship
+    WHERE organization_id = #{organizationId}
+      AND status = 'ACTIVE'
+    ORDER BY updated_at DESC
+    LIMIT 1
+  </select>
+
+  <select id="organizationExists" resultType="boolean">
+    SELECT EXISTS (SELECT 1 FROM organization WHERE organization_id = #{organizationId})
+  </select>
+
+  <update id="updateRelationship">
+    UPDATE organization_relationship
+    SET parent_organization_id = #{parentOrganizationId},
+        effective_start_date = #{effectiveStartDate},
+        effective_end_date = #{effectiveEndDate},
+        updated_at = current_timestamp
+    WHERE organization_id = #{organizationId}
+      AND status = 'ACTIVE'
+  </update>
+
+  <insert id="insertRelationship">
+    INSERT INTO organization_relationship (
+      organization_relationship_id,
+      organization_id,
+      parent_organization_id,
+      effective_start_date,
+      effective_end_date,
+      status
+    ) VALUES (
+      #{organizationRelationshipId},
+      #{organizationId},
+      #{parentOrganizationId},
+      #{effectiveStartDate},
+      #{effectiveEndDate},
+      'ACTIVE'
+    )
+  </insert>
+
+  <insert id="insertChangeHistory">
+    INSERT INTO change_history (
+      change_history_id,
+      entity_name,
+      entity_id,
+      before_value,
+      after_value,
+      actor_user_id,
+      changed_at,
+      reason,
+      status
+    ) VALUES (
+      #{changeHistoryId},
+      #{entityName},
+      #{entityId},
+      CAST(#{beforeValue} AS jsonb),
+      CAST(#{afterValue} AS jsonb),
+      #{actorUserId},
+      current_timestamp,
+      #{reason},
+      'RECORDED'
+    )
+  </insert>
+</mapper>

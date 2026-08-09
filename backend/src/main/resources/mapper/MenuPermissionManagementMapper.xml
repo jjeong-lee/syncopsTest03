@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.ac.knue.facultyassessment.menupermissions.MenuPermissionManagementMapper">
+  <sql id="menuPermissionColumns">
+    mp.menu_permission_id AS "menuPermissionId",
+    mp.subject_type AS "subjectType",
+    mp.subject_id AS "subjectId",
+    mp.menu_id AS "menuId",
+    major.menu_name AS "majorMenuName",
+    middle.menu_name AS "middleMenuName",
+    m.menu_name AS "screenName",
+    mp.access_allowed AS "accessAllowed"
+  </sql>
+
+  <sql id="menuPermissionJoin">
+    FROM menu_permission mp
+    JOIN menu m ON m.menu_id = mp.menu_id
+    LEFT JOIN menu middle ON middle.menu_id = m.parent_menu_id
+    LEFT JOIN menu major ON major.menu_id = middle.parent_menu_id
+  </sql>
+
+  <select id="findMenuPermissions" resultType="kr.ac.knue.facultyassessment.menupermissions.MenuPermissionManagementService$MenuPermissionSummary">
+    SELECT <include refid="menuPermissionColumns" />
+    <include refid="menuPermissionJoin" />
+    <where>
+      mp.status = 'ACTIVE'
+      <if test="criteria.subjectType != null and criteria.subjectType != ''">
+        AND mp.subject_type = #{criteria.subjectType}
+      </if>
+      <if test="criteria.subjectId != null and criteria.subjectId != ''">
+        AND mp.subject_id = #{criteria.subjectId}
+      </if>
+      <if test="criteria.menuId != null and criteria.menuId != ''">
+        AND mp.menu_id = #{criteria.menuId}
+      </if>
+    </where>
+    ORDER BY major.display_order NULLS LAST, middle.display_order NULLS LAST, m.display_order
+  </select>
+
+  <select id="findMenuPermission" resultType="kr.ac.knue.facultyassessment.menupermissions.MenuPermissionManagementService$MenuPermissionSummary">
+    SELECT <include refid="menuPermissionColumns" />
+    <include refid="menuPermissionJoin" />
+    WHERE mp.subject_type = #{subjectType}
+      AND mp.subject_id = #{subjectId}
+      AND mp.menu_id = #{menuId}
+  </select>
+
+  <select id="menuExists" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM menu WHERE menu_id = #{menuId})
+  </select>
+
+  <select id="subjectExists" resultType="boolean">
+    SELECT CASE
+      WHEN #{subjectType} = 'ROLE' THEN EXISTS(SELECT 1 FROM role WHERE role_code = #{subjectId})
+      WHEN #{subjectType} = 'ORGANIZATION' THEN EXISTS(SELECT 1 FROM organization WHERE organization_id = #{subjectId})
+      WHEN #{subjectType} = 'USER' THEN EXISTS(SELECT 1 FROM user_account WHERE user_id = #{subjectId})
+      ELSE false
+    END
+  </select>
+
+  <insert id="upsertMenuPermission">
+    INSERT INTO menu_permission (menu_permission_id, subject_type, subject_id, menu_id, access_allowed, status)
+    VALUES (#{menuPermissionId}, #{subjectType}, #{subjectId}, #{menuId}, #{accessAllowed}, 'ACTIVE')
+    ON CONFLICT (subject_type, subject_id, menu_id) DO UPDATE
+    SET access_allowed = EXCLUDED.access_allowed,
+        status = 'ACTIVE',
+        updated_at = current_timestamp
+  </insert>
+
+  <insert id="insertChangeHistory">
+    INSERT INTO change_history (
+      change_history_id, entity_name, entity_id, before_value, after_value, actor_user_id, changed_at, reason, status
+    ) VALUES (
+      #{changeHistoryId}, #{entityName}, #{entityId}, CAST(#{beforeValue} AS jsonb), CAST(#{afterValue} AS jsonb),
+      #{actorUserId}, current_timestamp, #{reason}, 'RECORDED'
+    )
+  </insert>
+</mapper>

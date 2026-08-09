@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.ac.knue.facultyassessment.detailcodes.DetailCodeManagementMapper">
+  <sql id="detailCodeColumns">
+    detail_code_id AS "detailCodeId",
+    code_value AS "codeValue",
+    code_name AS "codeName",
+    parent_detail_code_id AS "parentDetailCodeId",
+    display_order AS "displayOrder",
+    additional_attributes::text AS "additionalAttributes",
+    use_yn AS "useYn"
+  </sql>
+
+  <select id="findDetailCodes" resultType="kr.ac.knue.facultyassessment.detailcodes.DetailCodeManagementService$DetailCodeRow">
+    SELECT <include refid="detailCodeColumns" />
+    FROM detail_code
+    <where>
+      group_id = #{criteria.groupId}
+      <if test="criteria.useYn != null and criteria.useYn != ''">
+        AND use_yn = #{criteria.useYn}
+      </if>
+    </where>
+    ORDER BY display_order, code_value
+  </select>
+
+  <select id="findDetailCodeByGroupAndCode" resultType="kr.ac.knue.facultyassessment.detailcodes.DetailCodeManagementService$DetailCodeRow">
+    SELECT <include refid="detailCodeColumns" />
+    FROM detail_code
+    WHERE group_id = #{groupId}
+      AND code_value = #{codeValue}
+  </select>
+
+  <insert id="insertDetailCode">
+    INSERT INTO detail_code (
+      detail_code_id, group_id, code_value, code_name, parent_detail_code_id, display_order, additional_attributes, use_yn
+    ) VALUES (
+      #{detailCodeId}, #{groupId}, #{request.codeValue}, #{request.codeName},
+      NULLIF(#{request.parentDetailCodeId}, ''), #{request.displayOrder}, CAST(#{additionalAttributes} AS jsonb), #{useYn}
+    )
+  </insert>
+
+  <update id="updateDetailCode">
+    UPDATE detail_code
+    SET code_name = #{request.codeName},
+        parent_detail_code_id = NULLIF(#{request.parentDetailCodeId}, ''),
+        display_order = #{request.displayOrder},
+        additional_attributes = CAST(#{additionalAttributes} AS jsonb),
+        use_yn = #{useYn},
+        updated_at = current_timestamp
+    WHERE detail_code_id = #{detailCodeId}
+  </update>
+
+  <insert id="insertChangeHistory">
+    INSERT INTO change_history (
+      change_history_id, entity_name, entity_id, before_value, after_value, actor_user_id, changed_at, reason, status
+    ) VALUES (
+      #{changeHistoryId}, #{entityName}, #{entityId}, CAST(#{beforeValue} AS jsonb), CAST(#{afterValue} AS jsonb),
+      #{actorUserId}, current_timestamp, #{reason}, 'RECORDED'
+    )
+  </insert>
+</mapper>
