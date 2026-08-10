@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.ac.knue.facultyassessment.codegroups.CodeGroupManagementMapper">
+  <sql id="codeGroupColumns">
+    group_id AS "groupId",
+    group_name AS "groupName",
+    description,
+    management_department AS "managementDepartment",
+    use_yn AS "useYn"
+  </sql>
+
+  <select id="findCodeGroups" resultType="kr.ac.knue.facultyassessment.codegroups.CodeGroupManagementService$CodeGroupSummary">
+    SELECT <include refid="codeGroupColumns" />
+    FROM code_group
+    <where>
+      <if test="criteria.groupId != null and criteria.groupId != ''">
+        group_id = #{criteria.groupId}
+      </if>
+      <if test="criteria.useYn != null and criteria.useYn != ''">
+        <if test="criteria.groupId != null and criteria.groupId != ''">AND</if>
+        use_yn = #{criteria.useYn}
+      </if>
+    </where>
+    ORDER BY group_id
+  </select>
+
+  <select id="findCodeGroupById" resultType="kr.ac.knue.facultyassessment.codegroups.CodeGroupManagementService$CodeGroupSummary">
+    SELECT <include refid="codeGroupColumns" />
+    FROM code_group
+    WHERE group_id = #{groupId}
+  </select>
+
+  <insert id="insertCodeGroup">
+    INSERT INTO code_group (group_id, group_name, description, management_department, use_yn)
+    VALUES (
+      #{request.groupId}, #{request.groupName}, NULLIF(#{request.description}, ''),
+      NULLIF(#{request.managementDepartment}, ''), #{useYn}
+    )
+  </insert>
+
+  <update id="updateCodeGroup">
+    UPDATE code_group
+    SET group_name = #{request.groupName},
+        description = NULLIF(#{request.description}, ''),
+        management_department = NULLIF(#{request.managementDepartment}, ''),
+        use_yn = #{useYn},
+        updated_at = current_timestamp
+    WHERE group_id = #{request.groupId}
+  </update>
+
+  <insert id="insertChangeHistory">
+    INSERT INTO change_history (
+      change_history_id, entity_name, entity_id, before_value, after_value, actor_user_id, changed_at, reason, status
+    ) VALUES (
+      #{changeHistoryId}, #{entityName}, #{entityId}, CAST(#{beforeValue} AS jsonb), CAST(#{afterValue} AS jsonb),
+      #{actorUserId}, current_timestamp, #{reason}, 'RECORDED'
+    )
+  </insert>
+</mapper>

@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.ac.knue.facultyassessment.userroles.UserRoleManagementMapper">
+  <select id="findActiveUserRoles" resultType="kr.ac.knue.facultyassessment.userroles.UserRoleManagementService$UserRoleSummary">
+    SELECT
+      user_role_id AS "userRoleId",
+      role_code AS "roleCode",
+      approval_user_id AS "approvalUserId",
+      effective_start_date AS "effectiveStartDate",
+      effective_end_date AS "effectiveEndDate",
+      assignment_type AS "assignmentType",
+      status
+    FROM user_role
+    WHERE user_id = #{userId}
+      AND status = 'ACTIVE'
+    ORDER BY role_code
+  </select>
+
+  <select id="findActiveUserRole" resultType="kr.ac.knue.facultyassessment.userroles.UserRoleManagementService$UserRoleSummary">
+    SELECT
+      user_role_id AS "userRoleId",
+      role_code AS "roleCode",
+      approval_user_id AS "approvalUserId",
+      effective_start_date AS "effectiveStartDate",
+      effective_end_date AS "effectiveEndDate",
+      assignment_type AS "assignmentType",
+      status
+    FROM user_role
+    WHERE user_id = #{userId}
+      AND role_code = #{roleCode}
+      AND status = 'ACTIVE'
+  </select>
+
+  <select id="userExists" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM user_account WHERE user_id = #{userId})
+  </select>
+
+  <select id="roleExists" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM role WHERE role_code = #{roleCode} AND use_yn = 'Y')
+  </select>
+
+  <update id="updateUserRole">
+    UPDATE user_role
+    SET approval_user_id = #{approvalUserId},
+        effective_start_date = #{effectiveStartDate},
+        effective_end_date = #{effectiveEndDate},
+        updated_at = current_timestamp
+    WHERE user_role_id = #{userRoleId}
+  </update>
+
+  <insert id="insertUserRole">
+    INSERT INTO user_role (
+      user_role_id,
+      user_id,
+      role_code,
+      approval_user_id,
+      effective_start_date,
+      effective_end_date,
+      assignment_type,
+      status
+    ) VALUES (
+      #{userRoleId},
+      #{userId},
+      #{roleCode},
+      #{approvalUserId},
+      #{effectiveStartDate},
+      #{effectiveEndDate},
+      'MANUAL',
+      'ACTIVE'
+    )
+  </insert>
+
+  <insert id="insertChangeHistory">
+    INSERT INTO change_history (
+      change_history_id,
+      entity_name,
+      entity_id,
+      before_value,
+      after_value,
+      actor_user_id,
+      changed_at,
+      reason,
+      status
+    ) VALUES (
+      #{changeHistoryId},
+      #{entityName},
+      #{entityId},
+      CAST(#{beforeValue} AS jsonb),
+      CAST(#{afterValue} AS jsonb),
+      #{actorUserId},
+      current_timestamp,
+      #{reason},
+      'RECORDED'
+    )
+  </insert>
+</mapper>

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.ac.knue.facultyassessment.roles.RoleManagementMapper">
+  <select id="findRoles" resultType="kr.ac.knue.facultyassessment.roles.RoleManagementService$RoleSummary">
+    SELECT
+      role_code AS "roleCode",
+      role_name AS "roleName",
+      purpose,
+      assignment_criteria AS "assignmentCriteria",
+      default_data_scope AS "defaultDataScope"
+    FROM role
+    ORDER BY role_code
+  </select>
+
+  <select id="findRole" resultType="kr.ac.knue.facultyassessment.roles.RoleManagementService$RoleSummary">
+    SELECT
+      role_code AS "roleCode",
+      role_name AS "roleName",
+      purpose,
+      assignment_criteria AS "assignmentCriteria",
+      default_data_scope AS "defaultDataScope"
+    FROM role
+    WHERE role_code = #{roleCode}
+  </select>
+
+  <update id="updateRole">
+    UPDATE role
+    SET role_name = #{roleName},
+        purpose = #{purpose},
+        assignment_criteria = #{assignmentCriteria},
+        default_data_scope = #{defaultDataScope},
+        updated_at = current_timestamp
+    WHERE role_code = #{roleCode}
+  </update>
+
+  <insert id="insertChangeHistory">
+    INSERT INTO change_history (
+      change_history_id,
+      entity_name,
+      entity_id,
+      before_value,
+      after_value,
+      actor_user_id,
+      changed_at,
+      reason,
+      status
+    ) VALUES (
+      #{changeHistoryId},
+      #{entityName},
+      #{entityId},
+      CAST(#{beforeValue} AS jsonb),
+      CAST(#{afterValue} AS jsonb),
+      #{actorUserId},
+      current_timestamp,
+      #{reason},
+      'RECORDED'
+    )
+  </insert>
+</mapper>

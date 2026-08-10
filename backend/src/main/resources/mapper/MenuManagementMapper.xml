@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.ac.knue.facultyassessment.menus.MenuManagementMapper">
+  <sql id="menuColumns">
+    menu_id AS "menuId",
+    menu_name AS "menuName",
+    parent_menu_id AS "parentMenuId",
+    display_order AS "displayOrder",
+    screen_id AS "screenId",
+    url,
+    icon,
+    business_category AS "businessCategory",
+    description,
+    use_yn AS "useYn"
+  </sql>
+
+  <select id="findMenus" resultType="kr.ac.knue.facultyassessment.menus.MenuManagementService$MenuSummary">
+    SELECT <include refid="menuColumns" />
+    FROM menu
+    <where>
+      <if test="criteria.parentMenuId != null and criteria.parentMenuId != ''">
+        parent_menu_id = #{criteria.parentMenuId}
+      </if>
+      <if test="criteria.useYn != null and criteria.useYn != ''">
+        <if test="criteria.parentMenuId != null and criteria.parentMenuId != ''">AND</if>
+        use_yn = #{criteria.useYn}
+      </if>
+    </where>
+    ORDER BY parent_menu_id NULLS FIRST, display_order, menu_id
+  </select>
+
+  <select id="findMenuByMenuId" resultType="kr.ac.knue.facultyassessment.menus.MenuManagementService$MenuSummary">
+    SELECT <include refid="menuColumns" />
+    FROM menu
+    WHERE menu_id = #{menuId}
+  </select>
+
+  <select id="findMenuByNameAndScreen" resultType="kr.ac.knue.facultyassessment.menus.MenuManagementService$MenuSummary">
+    SELECT <include refid="menuColumns" />
+    FROM menu
+    WHERE menu_name = #{menuName}
+      AND screen_id = #{screenId}
+  </select>
+
+  <select id="menuExists" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM menu WHERE menu_id = #{menuId})
+  </select>
+
+  <update id="updateMenu">
+    UPDATE menu
+    SET menu_name = #{request.menuName},
+        parent_menu_id = NULLIF(#{request.parentMenuId}, ''),
+        display_order = #{request.displayOrder},
+        screen_id = #{request.screenId},
+        url = #{request.url},
+        icon = NULLIF(#{request.icon}, ''),
+        business_category = NULLIF(#{request.businessCategory}, ''),
+        description = NULLIF(#{request.description}, ''),
+        use_yn = #{useYn},
+        updated_at = current_timestamp
+    WHERE menu_id = #{menuId}
+  </update>
+
+  <insert id="insertMenu">
+    INSERT INTO menu (
+      menu_id, menu_name, parent_menu_id, display_order, screen_id, url, icon, business_category, description, use_yn
+    ) VALUES (
+      #{menuId}, #{request.menuName}, NULLIF(#{request.parentMenuId}, ''), #{request.displayOrder}, #{request.screenId},
+      #{request.url}, NULLIF(#{request.icon}, ''), NULLIF(#{request.businessCategory}, ''), NULLIF(#{request.description}, ''), #{useYn}
+    )
+  </insert>
+
+  <update id="updateDisplayOrder">
+    UPDATE menu
+    SET display_order = #{displayOrder},
+        updated_at = current_timestamp
+    WHERE menu_id = #{menuId}
+  </update>
+
+  <insert id="insertChangeHistory">
+    INSERT INTO change_history (
+      change_history_id, entity_name, entity_id, before_value, after_value, actor_user_id, changed_at, reason, status
+    ) VALUES (
+      #{changeHistoryId}, #{entityName}, #{entityId}, CAST(#{beforeValue} AS jsonb), CAST(#{afterValue} AS jsonb),
+      #{actorUserId}, current_timestamp, #{reason}, 'RECORDED'
+    )
+  </insert>
+</mapper>
