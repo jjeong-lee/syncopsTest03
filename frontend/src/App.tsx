@@ -25,6 +25,7 @@ const menuGroups = [
   { label: "역할·권한 관리", prefix: "/system/roles-permissions/" },
   { label: "메뉴 관리", prefix: "/system/menus/" },
   { label: "공통코드 관리", prefix: "/system/common-codes/" },
+  { label: "보안·감사 관리", prefix: "/security-audit/" },
 ];
 
 function LoginScreen({ onAuthenticated }: LoginScreenProps) {
@@ -169,7 +170,9 @@ function SystemShell({
   const permittedRoutes = authorizedMenus.flatMap((menu) =>
     menu.route ? [menu.route] : [],
   );
-  const isSystemRoute = location.pathname.startsWith("/system/");
+  const isSystemRoute =
+    location.pathname.startsWith("/system/") ||
+    location.pathname.startsWith("/security-audit/");
   const showSystemShell = isSystemRoute || initialMenus !== null;
 
   return (

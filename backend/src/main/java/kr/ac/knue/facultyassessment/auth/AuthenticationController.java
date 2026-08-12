@@ -29,8 +29,8 @@ public class AuthenticationController {
     }
 
     @PostMapping("/api/auth/login")
-    public ResponseEntity<ApiResponse<CurrentUserResponse>> login(@Valid @RequestBody LoginRequest request) {
-        AuthenticationPort.LoginResult result = authenticationService.authenticate(request.userId(), request.password());
+    public ResponseEntity<ApiResponse<CurrentUserResponse>> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
+        AuthenticationPort.LoginResult result = authenticationService.authenticate(request.userId(), request.password(), httpRequest.getRemoteAddr());
         return ResponseEntity.ok()
             .header(HttpHeaders.SET_COOKIE, sessionCookie(result.sessionId(), Duration.ofHours(8)).toString())
             .body(ApiResponse.success(CurrentUserResponse.from(result.user())));

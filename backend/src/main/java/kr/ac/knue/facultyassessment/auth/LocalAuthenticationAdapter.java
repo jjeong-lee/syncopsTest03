@@ -31,7 +31,7 @@ public class LocalAuthenticationAdapter implements AuthenticationPort {
 
     @Override
     @Transactional
-    public LoginResult authenticate(String userId, String password) {
+    public LoginResult authenticate(String userId, String password, String ipAddress) {
         AuthenticationMapper.AccountCredentials account = authenticationMapper.findAccount(userId);
         if (account == null || !"Y".equals(account.useYn()) || !passwordMatches(password, account.passwordSalt(), account.passwordHash())) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS", "사용자 ID 또는 비밀번호가 올바르지 않습니다.", null);
@@ -39,7 +39,7 @@ public class LocalAuthenticationAdapter implements AuthenticationPort {
 
         AuthenticatedUser user = loadUser(account.userId());
         String sessionId = createSessionId();
-        authenticationMapper.insertSession(sessionId, account.userId());
+        authenticationMapper.insertSession(sessionId, account.userId(), ipAddress);
         return new LoginResult(sessionId, user);
     }
 

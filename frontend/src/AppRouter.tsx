@@ -7,6 +7,10 @@ import { MenuInformationManagementPage } from "./features/menus/MenuInformationM
 import { MenuStructureManagementPage } from "./features/menus/MenuStructureManagementPage";
 import { OrganizationManagementPage } from "./features/organizations/OrganizationManagementPage";
 import { RoleManagementPage } from "./features/roles/RoleManagementPage";
+import {
+  SessionStatusManagementPage,
+  SessionTerminationHistoryPage,
+} from "./features/session-status/SessionStatusManagementPage";
 import { UserRoleManagementPage } from "./features/user-roles/UserRoleManagementPage";
 import { UserManagementPage } from "./features/users/UserManagementPage";
 
@@ -125,6 +129,20 @@ export function AppRouter({ isReady, permittedRoutes }: AppRouterProps) {
         element={protectedRoute(
           "/system/common-codes/detail-codes",
           <DetailCodeManagementPage />,
+        )}
+      />
+      <Route
+        path="/security-audit/session-status"
+        element={protectedRoute(
+          "/security-audit/session-status",
+          <SessionStatusManagementPage />,
+        )}
+      />
+      <Route
+        path="/security-audit/session-termination-history"
+        element={protectedRoute(
+          "/security-audit/session-termination-history",
+          <SessionTerminationHistoryPage />,
         )}
       />
       <Route path="*" element={<Navigate replace to="/" />} />
