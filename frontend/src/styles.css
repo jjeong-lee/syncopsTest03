@@ -396,6 +396,74 @@ h1 {
   padding-top: 60px;
 }
 
+.session-status-management {
+  padding-top: 60px;
+  padding-bottom: 120px;
+}
+
+.session-status-management h1 {
+  margin-bottom: 40px;
+}
+
+.session-command-panel,
+.session-results {
+  border-top: 2px solid #222;
+  border-bottom: 1px solid #ddd;
+  padding: 22px 0;
+}
+
+.session-command-panel p {
+  margin: 12px 0 0;
+  color: #666;
+}
+
+.session-results {
+  margin-top: 40px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(24 32 56 / 48%);
+}
+
+.session-modal {
+  width: min(100%, 620px);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: 28px;
+  background: #fff;
+  box-shadow: 0 24px 72px rgb(18 29 55 / 28%);
+}
+
+.session-modal h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.session-modal > p {
+  color: #555;
+  line-height: 1.6;
+}
+
+.session-modal label {
+  display: grid;
+  gap: 8px;
+  margin-top: 22px;
+  color: #555;
+}
+
+.session-modal textarea {
+  min-height: 120px;
+  resize: vertical;
+  border: 1px solid #d3d3d3;
+  padding: 12px;
+}
+
 .organization-management {
   padding-top: 60px;
   padding-bottom: 120px;

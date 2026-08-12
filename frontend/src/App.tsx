@@ -25,6 +25,7 @@ const menuGroups = [
   { label: "역할·권한 관리", prefix: "/system/roles-permissions/" },
   { label: "메뉴 관리", prefix: "/system/menus/" },
   { label: "공통코드 관리", prefix: "/system/common-codes/" },
+  { label: "보안·감사 관리", prefix: "/system/security-audit/" },
 ];
 
 function LoginScreen({ onAuthenticated }: LoginScreenProps) {

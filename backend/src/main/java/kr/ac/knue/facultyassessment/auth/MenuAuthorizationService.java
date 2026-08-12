@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 public class MenuAuthorizationService {
 
     private static final List<Map.Entry<String, String>> PROTECTED_PATH_MENUS = List.of(
+        Map.entry("/api/session-status", "MENU-SESSION-STATUS-MANAGEMENT"),
         Map.entry("/api/code-groups/", "MENU-DETAIL-CODE-MANAGEMENT"),
         Map.entry("/api/users/", "MENU-USER-ROLE-MANAGEMENT"),
         Map.entry("/api/users", "MENU-USER-MANAGEMENT"),
