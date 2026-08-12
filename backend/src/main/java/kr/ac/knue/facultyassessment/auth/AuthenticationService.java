@@ -14,8 +14,8 @@ public class AuthenticationService {
         this.authenticationPort = authenticationPort;
     }
 
-    public AuthenticationPort.LoginResult authenticate(String userId, String password) {
-        return authenticationPort.authenticate(userId, password);
+    public AuthenticationPort.LoginResult authenticate(String userId, String password, String ipAddress) {
+        return authenticationPort.authenticate(userId, password, ipAddress);
     }
 
     public Optional<AuthenticationPort.AuthenticatedUser> findActiveSession(String sessionId) {

@@ -5,7 +5,7 @@ import java.util.Optional;
 
 public interface AuthenticationPort {
 
-    LoginResult authenticate(String userId, String password);
+    LoginResult authenticate(String userId, String password, String ipAddress);
 
     Optional<AuthenticatedUser> findActiveSession(String sessionId);
 

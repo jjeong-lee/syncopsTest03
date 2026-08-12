@@ -26,13 +26,13 @@ public interface AuthenticationMapper {
     @Select("select authorized.menu_id as \"menuId\", authorized.menu_name as \"menuName\", authorized.parent_menu_id as \"parentMenuId\", authorized.route from (select distinct m.menu_id, m.menu_name, m.parent_menu_id, m.url as route, m.display_order from menu m join menu_permission mp on mp.menu_id = m.menu_id join organization_user_mapping oum on oum.organization_id = mp.subject_id where mp.subject_type = 'ORGANIZATION' and oum.user_id = #{userId} and oum.use_yn = 'Y' and mp.access_allowed = 'Y' and mp.status = 'ACTIVE' and m.use_yn = 'Y') authorized order by authorized.display_order")
     List<AuthenticationPort.AuthorizedMenu> findAuthorizedMenusForUserOrganizations(@Param("userId") String userId);
 
-    @Insert("insert into user_session (session_id, user_id, status) values (#{sessionId}, #{userId}, 'ACTIVE')")
-    void insertSession(@Param("sessionId") String sessionId, @Param("userId") String userId);
+    @Insert("insert into user_session (session_id, user_id, status, login_at, last_activity_at, ip_address) values (#{sessionId}, #{userId}, 'ACTIVE', current_timestamp, current_timestamp, #{ipAddress})")
+    void insertSession(@Param("sessionId") String sessionId, @Param("userId") String userId, @Param("ipAddress") String ipAddress);
 
     @Select("select us.session_id as \"sessionId\", ua.user_id as \"userId\" from user_session us join user_account ua on ua.user_id = us.user_id where us.session_id = #{sessionId} and us.status = 'ACTIVE' and ua.use_yn = 'Y'")
     ActiveSession findActiveSession(@Param("sessionId") String sessionId);
 
-    @Update("update user_session set status = 'TERMINATED', updated_at = current_timestamp where session_id = #{sessionId} and status = 'ACTIVE'")
+    @Update("update user_session set status = 'TERMINATED', termination_type = 'LOGOUT', terminated_at = current_timestamp, updated_at = current_timestamp where session_id = #{sessionId} and status = 'ACTIVE'")
     void terminateSession(@Param("sessionId") String sessionId);
 
     record AccountCredentials(String userId, String passwordHash, String passwordSalt, String useYn) {

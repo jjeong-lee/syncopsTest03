@@ -1113,6 +1113,112 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+  /session-status:
+    get:
+      operationId: listSessionStatus
+      summary: 활성 세션 현황 조회
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-001
+      x-roles:
+      - R09
+      parameters:
+      - name: page
+        in: query
+        schema: {type: integer, minimum: 0}
+      - name: size
+        in: query
+        schema: {type: integer, minimum: 1}
+      responses:
+        '200': {description: 조회 성공, content: {application/json: {schema: {$ref: '#/components/schemas/ApiResponse'}}}}
+        '401': {description: 미인증, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
+        '403': {description: 권한 없음, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
+  /session-status/{sessionId}/termination:
+    post:
+      operationId: updateSessionTermination
+      summary: 활성 세션 강제종료
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-002
+      - REQ-004
+      x-roles:
+      - R09
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SessionTerminationRequest'}
+      x-business-rules:
+      - R09만 비공백 reason으로 활성 Studio UI 세션을 강제종료할 수 있다
+      - 이미 종료된 세션은 다시 강제종료하지 않는다
+      x-side-effects:
+      - user_session의 종료 정보와 상태를 갱신한다
+      - change_history에 처리자·사유·일시를 기록한다
+      x-required-tests:
+      - 'happy: R09가 활성 sessionId와 reason을 전송 -> user_session 종료 상태가 후속 조회에 보인다'
+      - 'auth: R09 외 세션 요청 -> 403 ApiError를 반환하고 user_session 상태가 유지된다'
+      - 'validation: 공백 reason 요청 -> reason 필드 오류 ApiError를 반환한다'
+      - 'business: 이미 종료된 sessionId 요청 -> 409을 반환하고 종료 정보가 바뀌지 않는다'
+      - 'side-effect: 강제종료 성공 -> change_history에 actor_user_id와 reason이 존재한다'
+      x-state-transitions:
+      - active -> terminated
+      responses:
+        '200': {description: 강제종료 성공, content: {application/json: {schema: {$ref: '#/components/schemas/ApiResponse'}}}}
+        '400': {description: 입력 오류, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
+        '401': {description: 미인증, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
+        '403': {description: 권한 없음, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
+        '409': {description: 이미 종료된 세션, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
+  /session-termination-history:
+    get:
+      operationId: listSessionTerminationHistory
+      summary: 세션 종료이력 조회
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-003
+      x-roles:
+      - R09
+      parameters:
+      - {name: userId, in: query, schema: {type: string}}
+      - {name: startedAt, in: query, schema: {type: string, format: date-time}}
+      - {name: endedAt, in: query, schema: {type: string, format: date-time}}
+      - {name: page, in: query, schema: {type: integer, minimum: 0}}
+      - {name: size, in: query, schema: {type: integer, minimum: 1}}
+      responses:
+        '200': {description: 조회 성공, content: {application/json: {schema: {$ref: '#/components/schemas/ApiResponse'}}}}
+        '400': {description: 기간 입력 오류, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
+        '401': {description: 미인증, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
+        '403': {description: 권한 없음, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
+  /session-termination-history/{sessionId}:
+    get:
+      operationId: getSessionTerminationHistory
+      summary: 세션 종료이력 상세 조회
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-005
+      x-roles:
+      - R09
+      responses:
+        '200': {description: 조회 성공, content: {application/json: {schema: {$ref: '#/components/schemas/ApiResponse'}}}}
+        '401': {description: 미인증, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
+        '403': {description: 권한 없음, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
+  /session-status/{sessionId}/termination/audit:
+    get:
+      operationId: getSessionTerminationAudit
+      summary: 세션 강제종료 감사 조회
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-004
+      x-roles:
+      - R09
+      responses:
+        '200': {description: 조회 성공, content: {application/json: {schema: {$ref: '#/components/schemas/ApiResponse'}}}}
+        '401': {description: 미인증, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
+        '403': {description: 권한 없음, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
 components:
   securitySchemes:
     sessionCookie:
@@ -1352,6 +1458,14 @@ components:
           $ref: '#/components/schemas/UseYn'
         reason:
           type: string
+    SessionTerminationRequest:
+      type: object
+      required:
+      - reason
+      properties:
+        reason:
+          type: string
+          minLength: 1
 x-uncovered-requirements:
 - canonical_id: REQ-037
   status: non-functional
