@@ -9,6 +9,7 @@ import { OrganizationManagementPage } from "./features/organizations/Organizatio
 import { RoleManagementPage } from "./features/roles/RoleManagementPage";
 import { UserRoleManagementPage } from "./features/user-roles/UserRoleManagementPage";
 import { UserManagementPage } from "./features/users/UserManagementPage";
+import { SessionStatusManagementPage } from "./features/session-status/SessionStatusManagementPage";
 
 type AppRouterProps = {
   isReady: boolean;
@@ -125,6 +126,13 @@ export function AppRouter({ isReady, permittedRoutes }: AppRouterProps) {
         element={protectedRoute(
           "/system/common-codes/detail-codes",
           <DetailCodeManagementPage />,
+        )}
+      />
+      <Route
+        path="/system/security-audit/session-status"
+        element={protectedRoute(
+          "/system/security-audit/session-status",
+          <SessionStatusManagementPage />,
         )}
       />
       <Route path="*" element={<Navigate replace to="/" />} />

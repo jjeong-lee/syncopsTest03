@@ -43,6 +43,7 @@ public class SessionAuthorizationFilter extends OncePerRequestFilter {
             writeError(response, HttpServletResponse.SC_UNAUTHORIZED, "UNAUTHENTICATED", "인증 세션이 필요합니다.");
             return;
         }
+        authenticationPort.touchSession(sessionId);
         if (!request.getRequestURI().startsWith("/api/auth/") && !menuAuthorizationService.canAccess(user, request.getRequestURI())) {
             writeError(response, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "접근 권한이 없습니다.");
             return;

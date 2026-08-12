@@ -25,3 +25,5 @@ app:
   auth:
     session:
       secure: false
+      idle-timeout-minutes: ${APP_AUTH_SESSION_IDLE_TIMEOUT_MINUTES:30}
+      absolute-timeout-minutes: ${APP_AUTH_SESSION_ABSOLUTE_TIMEOUT_MINUTES:480}
