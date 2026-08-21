@@ -33,7 +33,8 @@
       organization_id AS "organizationId",
       parent_organization_id AS "parentOrganizationId",
       effective_start_date AS "effectiveStartDate",
-      effective_end_date AS "effectiveEndDate"
+      effective_end_date AS "effectiveEndDate",
+      status
     FROM organization_relationship
     WHERE organization_id = #{organizationId}
       AND status = 'ACTIVE'
@@ -41,15 +42,26 @@
     LIMIT 1
   </select>
 
+  <select id="findRelationshipHistory" resultType="kr.ac.knue.facultyassessment.organizations.OrganizationManagementService$OrganizationRelationship">
+    SELECT
+      organization_relationship_id AS "organizationRelationshipId",
+      organization_id AS "organizationId",
+      parent_organization_id AS "parentOrganizationId",
+      effective_start_date AS "effectiveStartDate",
+      effective_end_date AS "effectiveEndDate",
+      status
+    FROM organization_relationship
+    WHERE organization_id = #{organizationId}
+    ORDER BY CASE WHEN status = 'ACTIVE' THEN 0 ELSE 1 END, effective_start_date DESC, created_at DESC
+  </select>
+
   <select id="organizationExists" resultType="boolean">
     SELECT EXISTS (SELECT 1 FROM organization WHERE organization_id = #{organizationId})
   </select>
 
-  <update id="updateRelationship">
+  <update id="deactivateCurrentRelationship">
     UPDATE organization_relationship
-    SET parent_organization_id = #{parentOrganizationId},
-        effective_start_date = #{effectiveStartDate},
-        effective_end_date = #{effectiveEndDate},
+    SET status = 'INACTIVE',
         updated_at = current_timestamp
     WHERE organization_id = #{organizationId}
       AND status = 'ACTIVE'

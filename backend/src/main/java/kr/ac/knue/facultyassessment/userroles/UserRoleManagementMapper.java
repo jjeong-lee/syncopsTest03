@@ -10,9 +10,14 @@ public interface UserRoleManagementMapper {
 
     List<UserRoleManagementService.UserRoleSummary> findActiveUserRoles(@Param("userId") String userId);
 
-    UserRoleManagementService.UserRoleSummary findActiveUserRole(
+    UserRoleManagementService.UserRoleSummary findCurrentUserRole(
         @Param("userId") String userId,
         @Param("roleCode") String roleCode
+    );
+
+    UserRoleManagementService.UserRoleSummary findCurrentUserRoleById(
+        @Param("userId") String userId,
+        @Param("userRoleId") String userRoleId
     );
 
     boolean userExists(@Param("userId") String userId);
@@ -25,6 +30,8 @@ public interface UserRoleManagementMapper {
         @Param("effectiveStartDate") LocalDate effectiveStartDate,
         @Param("effectiveEndDate") LocalDate effectiveEndDate
     );
+
+    int revokeUserRole(@Param("userRoleId") String userRoleId);
 
     void insertUserRole(
         @Param("userRoleId") String userRoleId,

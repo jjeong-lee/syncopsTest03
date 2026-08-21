@@ -83,6 +83,24 @@ class OrganizationManagementApiContractTest {
     }
 
     @Test
+    void relationshipChangePreservesThePreviousRelationshipInHistory() throws Exception {
+        Cookie session = loginAsAdmin();
+
+        mockMvc.perform(put("/api/organizations/ORG-KNUE-EDU/relationship")
+                .cookie(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"parentOrganizationId\":\"ORG-KNUE\",\"effectiveStartDate\":\"2026-08-21\",\"reason\":\"조직 관계 이력 보존\"}"))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/organizations/ORG-KNUE-EDU/relationships").cookie(session))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.length()").value(2))
+            .andExpect(jsonPath("$.data[0].status").value("ACTIVE"))
+            .andExpect(jsonPath("$.data[1].status").value("INACTIVE"))
+            .andExpect(jsonPath("$.data[1].effectiveStartDate").value("2026-01-01"));
+    }
+
+    @Test
     void relationshipSaveRejectsMissingEffectiveStartDateWithoutWriting() throws Exception {
         Cookie session = loginAsAdmin();
         Integer before = jdbcTemplate.queryForObject(

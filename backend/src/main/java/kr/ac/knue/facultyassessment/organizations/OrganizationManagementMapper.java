@@ -11,14 +11,11 @@ public interface OrganizationManagementMapper {
 
     OrganizationManagementService.OrganizationRelationship findRelationship(@Param("organizationId") String organizationId);
 
+    List<OrganizationManagementService.OrganizationRelationship> findRelationshipHistory(@Param("organizationId") String organizationId);
+
     boolean organizationExists(@Param("organizationId") String organizationId);
 
-    int updateRelationship(
-        @Param("organizationId") String organizationId,
-        @Param("parentOrganizationId") String parentOrganizationId,
-        @Param("effectiveStartDate") java.time.LocalDate effectiveStartDate,
-        @Param("effectiveEndDate") java.time.LocalDate effectiveEndDate
-    );
+    int deactivateCurrentRelationship(@Param("organizationId") String organizationId);
 
     void insertRelationship(
         @Param("organizationRelationshipId") String organizationRelationshipId,

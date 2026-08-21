@@ -43,6 +43,16 @@ public class OrganizationManagementService {
         )).toList();
     }
 
+    /**
+     * 현재 관계와 분리해 이전 관계도 조회하여, 조직 구조 변경이 과거 적용기간을 덮어쓰지 않게 한다.
+     */
+    public List<OrganizationRelationship> findRelationshipHistory(String organizationId) {
+        if (!organizationManagementMapper.organizationExists(organizationId)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "ORGANIZATION_NOT_FOUND", "조직을 찾을 수 없습니다.", "organizationId");
+        }
+        return organizationManagementMapper.findRelationshipHistory(organizationId);
+    }
+
     @Transactional
     public void saveRelationship(String organizationId, OrganizationRelationshipRequest request, String actorUserId) {
         if (!organizationManagementMapper.organizationExists(organizationId)) {
@@ -53,21 +63,15 @@ public class OrganizationManagementService {
         }
 
         OrganizationRelationship before = organizationManagementMapper.findRelationship(organizationId);
-        int updated = organizationManagementMapper.updateRelationship(
+        // 기존 행을 수정하지 않고 비활성 이력으로 남긴 뒤 새 현재 관계를 추가한다.
+        organizationManagementMapper.deactivateCurrentRelationship(organizationId);
+        organizationManagementMapper.insertRelationship(
+            "ORG-REL-" + UUID.randomUUID(),
             organizationId,
             request.parentOrganizationId(),
             request.effectiveStartDate(),
             request.effectiveEndDate()
         );
-        if (updated == 0) {
-            organizationManagementMapper.insertRelationship(
-                "ORG-REL-" + UUID.randomUUID(),
-                organizationId,
-                request.parentOrganizationId(),
-                request.effectiveStartDate(),
-                request.effectiveEndDate()
-            );
-        }
 
         organizationManagementMapper.insertChangeHistory(
             "CHANGE-" + UUID.randomUUID(),
@@ -124,7 +128,8 @@ public class OrganizationManagementService {
         String organizationId,
         String parentOrganizationId,
         LocalDate effectiveStartDate,
-        LocalDate effectiveEndDate
+        LocalDate effectiveEndDate,
+        String status
     ) {
     }
 

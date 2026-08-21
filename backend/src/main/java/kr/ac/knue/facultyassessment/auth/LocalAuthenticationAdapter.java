@@ -8,6 +8,7 @@ import java.security.spec.KeySpec;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import kr.ac.knue.facultyassessment.common.ApiException;
@@ -57,12 +58,15 @@ public class LocalAuthenticationAdapter implements AuthenticationPort {
 
     private AuthenticatedUser loadUser(String userId) {
         List<String> roleCodes = authenticationMapper.findActiveRoleCodes(userId);
+        // 사용자 대상의 명시적 N 권한은 역할·조직에서 얻은 허용 후보보다 우선한다.
+        Set<String> deniedMenuIds = Set.copyOf(authenticationMapper.findDeniedMenuIdsForUser(userId));
         List<AuthorizedMenu> menus = java.util.stream.Stream.of(
                 roleCodes.stream().flatMap(roleCode -> authenticationMapper.findAuthorizedMenusForRole(roleCode).stream()),
                 authenticationMapper.findAuthorizedMenusForUser(userId).stream(),
                 authenticationMapper.findAuthorizedMenusForUserOrganizations(userId).stream()
             )
             .flatMap(stream -> stream)
+            .filter(menu -> !deniedMenuIds.contains(menu.menuId()))
             .distinct()
             .toList();
         return new AuthenticatedUser(userId, roleCodes, menus);

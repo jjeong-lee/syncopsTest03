@@ -15,10 +15,12 @@
     FROM user_role
     WHERE user_id = #{userId}
       AND status = 'ACTIVE'
+      AND effective_start_date &lt;= current_date
+      AND (effective_end_date IS NULL OR effective_end_date >= current_date)
     ORDER BY role_code
   </select>
 
-  <select id="findActiveUserRole" resultType="kr.ac.knue.facultyassessment.userroles.UserRoleManagementService$UserRoleSummary">
+  <select id="findCurrentUserRole" resultType="kr.ac.knue.facultyassessment.userroles.UserRoleManagementService$UserRoleSummary">
     SELECT
       user_role_id AS "userRoleId",
       role_code AS "roleCode",
@@ -31,6 +33,18 @@
     WHERE user_id = #{userId}
       AND role_code = #{roleCode}
       AND status = 'ACTIVE'
+      AND effective_start_date &lt;= current_date
+      AND (effective_end_date IS NULL OR effective_end_date >= current_date)
+  </select>
+
+  <select id="findCurrentUserRoleById" resultType="kr.ac.knue.facultyassessment.userroles.UserRoleManagementService$UserRoleSummary">
+    SELECT user_role_id AS "userRoleId", role_code AS "roleCode", approval_user_id AS "approvalUserId",
+      effective_start_date AS "effectiveStartDate", effective_end_date AS "effectiveEndDate",
+      assignment_type AS "assignmentType", status
+    FROM user_role
+    WHERE user_id = #{userId} AND user_role_id = #{userRoleId} AND status = 'ACTIVE'
+      AND effective_start_date &lt;= current_date
+      AND (effective_end_date IS NULL OR effective_end_date >= current_date)
   </select>
 
   <select id="userExists" resultType="boolean">
@@ -48,6 +62,12 @@
         effective_end_date = #{effectiveEndDate},
         updated_at = current_timestamp
     WHERE user_role_id = #{userRoleId}
+  </update>
+
+  <update id="revokeUserRole">
+    UPDATE user_role
+    SET status = 'REVOKED', updated_at = current_timestamp
+    WHERE user_role_id = #{userRoleId} AND status = 'ACTIVE'
   </update>
 
   <insert id="insertUserRole">
