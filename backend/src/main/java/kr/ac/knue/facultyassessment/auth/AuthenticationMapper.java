@@ -17,6 +17,9 @@ public interface AuthenticationMapper {
     @Select("select role_code from user_role where user_id = #{userId} and status = 'ACTIVE' and effective_start_date <= current_date and (effective_end_date is null or effective_end_date >= current_date)")
     List<String> findActiveRoleCodes(@Param("userId") String userId);
 
+    @Select("select menu_id from menu_permission where subject_type = 'USER' and subject_id = #{userId} and access_allowed = 'N' and status = 'ACTIVE'")
+    List<String> findDeniedMenuIdsForUser(@Param("userId") String userId);
+
     @Select("select authorized.menu_id as \"menuId\", authorized.menu_name as \"menuName\", authorized.parent_menu_id as \"parentMenuId\", authorized.route from (select distinct m.menu_id, m.menu_name, m.parent_menu_id, m.url as route, m.display_order from menu m join menu_permission mp on mp.menu_id = m.menu_id where mp.subject_type = 'ROLE' and mp.subject_id = #{roleCode} and mp.access_allowed = 'Y' and mp.status = 'ACTIVE' and m.use_yn = 'Y') authorized order by authorized.display_order")
     List<AuthenticationPort.AuthorizedMenu> findAuthorizedMenusForRole(@Param("roleCode") String roleCode);
 

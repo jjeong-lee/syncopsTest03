@@ -91,6 +91,24 @@ class MenuPermissionManagementApiContractTest {
     }
 
     @Test
+    void explicitDeniedUserPermissionHidesTheMenuAndBlocksItsProtectedApi() throws Exception {
+        Cookie adminSession = login("admin", "admin");
+        mockMvc.perform(put("/api/menu-permissions")
+                .cookie(adminSession)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"subjectType\":\"USER\",\"subjectId\":\"member\",\"menuId\":\"MENU-USER-MANAGEMENT\",\"accessAllowed\":\"N\",\"reason\":\"사용자 메뉴 접근 차단\"}"))
+            .andExpect(status().isOk());
+
+        Cookie memberSession = login("member", "member");
+        mockMvc.perform(get("/api/auth/me").cookie(memberSession))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.menus[?(@.menuId == 'MENU-USER-MANAGEMENT')]").isEmpty());
+        mockMvc.perform(get("/api/users").cookie(memberSession))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+    }
+
+    @Test
     void menuPermissionSaveRejectsMissingSubjectTypeAndUnknownMenuWithoutWriting() throws Exception {
         Cookie session = login("admin", "admin");
         Integer beforePermissions = jdbcTemplate.queryForObject("select count(*) from menu_permission", Integer.class);

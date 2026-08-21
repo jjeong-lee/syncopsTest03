@@ -110,4 +110,29 @@ describe("UserRoleManagementPage", () => {
       screen.queryByRole("button", { name: "역할 부여" }),
     ).not.toBeInTheDocument();
   });
+
+  it("revokes the selected role and requeries the current role list", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() => response([userRole()]))
+      .mockImplementationOnce(() => response(null))
+      .mockImplementationOnce(() => response([]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<UserRoleManagementPage />);
+    fireEvent.change(screen.getByLabelText("사용자 ID"), {
+      target: { value: "member" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "조회" }));
+    await screen.findByText("R01");
+    fireEvent.click(screen.getByRole("button", { name: "회수" }));
+    fireEvent.click(screen.getByTestId("user-role-revoke-confirm-button"));
+
+    await screen.findByText("현재 역할이 없습니다.");
+    expect(fetchMock.mock.calls[1][0]).toBe(
+      "/api/users/member/roles/USER-ROLE-MEMBER-R01",
+    );
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: "DELETE" });
+    expect(fetchMock.mock.calls[2][0]).toBe("/api/users/member/roles");
+  });
 });

@@ -120,6 +120,32 @@ export function UserRoleManagementPage() {
     }
   };
 
+  const revokeRole = async () => {
+    if (!revokeTarget) return;
+    setState("loading");
+    setRevokeNotice("");
+    try {
+      await apiRequest<null>(
+        `/api/users/${encodeURIComponent(userId)}/roles/${encodeURIComponent(revokeTarget.userRoleId)}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ approvalUserId: revokeTarget.approvalUserId }),
+        },
+      );
+      setRevokeTarget(null);
+      await loadRoles(true);
+    } catch (error) {
+      const permissionDenied = isPermissionError(error);
+      setState(permissionDenied ? "permission" : "error");
+      setRevokeNotice(
+        permissionDenied
+          ? "권한이 없습니다."
+          : "사용자 역할을 회수하지 못했습니다.",
+      );
+    }
+  };
+
   if (state === "permission") {
     return (
       <section
@@ -359,8 +385,7 @@ export function UserRoleManagementPage() {
             </div>
             <p>{revokeTarget.roleCode} 역할을 회수하시겠습니까?</p>
             <p className="modal-note">
-              회수 상태 전환 요청 필드가 API 계약에 정의되지 않아 저장하지
-              않습니다.
+              회수하면 역할 이력은 보존되고 현재 적용 역할에서 제외됩니다.
             </p>
             {revokeNotice && (
               <p className="error-message" role="alert">
@@ -378,11 +403,9 @@ export function UserRoleManagementPage() {
               <button
                 type="button"
                 className="destructive-action"
-                onClick={() =>
-                  setRevokeNotice(
-                    "회수 상태 전환 요청 형식이 확정되지 않아 회수 요청을 보내지 않았습니다.",
-                  )
-                }
+                data-testid="user-role-revoke-confirm-button"
+                disabled={state === "loading"}
+                onClick={() => void revokeRole()}
               >
                 회수
               </button>

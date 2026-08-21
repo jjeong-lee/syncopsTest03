@@ -43,7 +43,7 @@ public class UserRoleManagementService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "ROLE_NOT_FOUND", "정의되지 않은 역할코드입니다.", "roleCode");
         }
 
-        UserRoleSummary before = userRoleManagementMapper.findActiveUserRole(userId, request.roleCode());
+        UserRoleSummary before = userRoleManagementMapper.findCurrentUserRole(userId, request.roleCode());
         if (before == null) {
             userRoleManagementMapper.insertUserRole(
                 "USER-ROLE-" + UUID.randomUUID(),
@@ -78,6 +78,31 @@ public class UserRoleManagementService {
             )),
             actorUserId,
             request.reason()
+        );
+    }
+
+    /**
+     * 역할 회수는 행을 삭제하지 않고 REVOKED로 상태 전환해 승인자와 유효기간 이력을 보존한다.
+     */
+    @Transactional
+    public void revokeUserRole(String userId, String userRoleId, UserRoleRevokeRequest request, String actorUserId) {
+        if (!userRoleManagementMapper.userExists(userId)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "사용자를 찾을 수 없습니다.", "userId");
+        }
+        if (!userRoleManagementMapper.userExists(request.approvalUserId())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "APPROVER_NOT_FOUND", "승인자를 찾을 수 없습니다.", "approvalUserId");
+        }
+        UserRoleSummary before = userRoleManagementMapper.findCurrentUserRoleById(userId, userRoleId);
+        if (before == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "USER_ROLE_NOT_FOUND", "현재 역할을 찾을 수 없습니다.", "userRoleId");
+        }
+        userRoleManagementMapper.revokeUserRole(userRoleId);
+        userRoleManagementMapper.insertChangeHistory(
+            "CHANGE-" + UUID.randomUUID(), "user_role", userId + ":" + userRoleId,
+            serialize(before),
+            serialize(new UserRoleSummary(before.userRoleId(), before.roleCode(), request.approvalUserId(),
+                before.effectiveStartDate(), before.effectiveEndDate(), before.assignmentType(), "REVOKED")),
+            actorUserId, request.reason()
         );
     }
 

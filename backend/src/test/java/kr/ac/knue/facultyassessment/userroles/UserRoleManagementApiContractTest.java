@@ -1,5 +1,6 @@
 package kr.ac.knue.facultyassessment.userroles;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -90,6 +91,45 @@ class UserRoleManagementApiContractTest {
 
         Assertions.assertEquals(beforeUserRoleCount, jdbcTemplate.queryForObject("select count(*) from user_role where user_id = 'member'", Integer.class));
         Assertions.assertEquals(beforeHistoryCount, jdbcTemplate.queryForObject("select count(*) from change_history where entity_name = 'user_role'", Integer.class));
+    }
+
+    @Test
+    void expiredRoleIsNotCurrentAndRevocationIsPersistedWithItsApprovalHistory() throws Exception {
+        Cookie session = loginAsAdmin();
+
+        mockMvc.perform(post("/api/users/member/roles")
+                .cookie(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"roleCode\":\"R02\",\"approvalUserId\":\"admin\",\"effectiveStartDate\":\"2026-08-01\",\"effectiveEndDate\":\"2026-08-20\",\"reason\":\"종료된 역할\"}"))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/users/member/roles").cookie(session))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.length()").value(1))
+            .andExpect(jsonPath("$.data[0].roleCode").value("R01"));
+
+        String userRoleId = jdbcTemplate.queryForObject(
+            "select user_role_id from user_role where user_id = 'member' and role_code = 'R01'",
+            String.class
+        );
+        mockMvc.perform(delete("/api/users/member/roles/{userRoleId}", userRoleId)
+                .cookie(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"approvalUserId\":\"admin\",\"reason\":\"역할 회수\"}"))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/users/member/roles").cookie(session))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data").isEmpty());
+        Assertions.assertEquals("REVOKED", jdbcTemplate.queryForObject(
+            "select status from user_role where user_role_id = ?", String.class, userRoleId
+        ));
+        Assertions.assertEquals(1, jdbcTemplate.queryForObject(
+            "select count(*) from change_history where entity_name = 'user_role' and entity_id = ? "
+                + "and actor_user_id = 'admin' and reason = '역할 회수'",
+            Integer.class,
+            "member:" + userRoleId
+        ));
     }
 
     @Test

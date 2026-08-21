@@ -29,6 +29,11 @@ public class OrganizationManagementController {
         return ApiResponse.success(organizationManagementService.findOrganizations(new OrganizationSearchCriteria(organizationCode)));
     }
 
+    @GetMapping("/api/organizations/{organizationId}/relationships")
+    public ApiResponse<?> listOrganizationRelationshipHistory(@PathVariable String organizationId) {
+        return ApiResponse.success(organizationManagementService.findRelationshipHistory(organizationId));
+    }
+
     @PutMapping("/api/organizations/{organizationId}/relationship")
     public ApiResponse<Void> saveOrganizationRelationship(
         @PathVariable String organizationId,
