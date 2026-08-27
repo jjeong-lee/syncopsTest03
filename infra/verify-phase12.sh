@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 python3 "$ROOT_DIR/infra/verify-scope.py"
+python3 "$ROOT_DIR/infra/verify-docker-healthchecks.py"
 (
   cd "$ROOT_DIR/backend"
   mvn test
