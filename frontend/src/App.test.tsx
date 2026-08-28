@@ -172,7 +172,7 @@ describe("로그인 진입", () => {
     window.history.replaceState({}, "", "/");
   });
 
-  it("로그인 화면에 자격 증명 입력, 로그인·로그아웃 제어 및 오류 영역을 표시하고 인증 오류를 안내한다", async () => {
+  it("로그인 화면에 자격 증명 입력과 로그인 제어만 표시하고 인증 오류를 안내한다", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValueOnce(
@@ -196,7 +196,7 @@ describe("로그인 진입", () => {
       "primary-action",
       "login-submit",
     );
-    expect(screen.getByTestId("auth-logout-button")).toBeInTheDocument();
+    expect(screen.queryByTestId("auth-logout-button")).not.toBeInTheDocument();
     expect(screen.getByTestId("auth-login-error")).toBeEmptyDOMElement();
 
     fireEvent.click(screen.getByTestId("auth-login-button"));
@@ -232,7 +232,7 @@ describe("로그인 진입", () => {
     expect(screen.queryByTestId("auth-shell")).not.toBeInTheDocument();
   });
 
-  it("유효한 자격 증명을 로그인 API에 보내고 응답 메뉴만 사이드바에 표시한다", async () => {
+  it("유효한 자격 증명을 로그인 API에 보내고 메인 화면에 로그인 사용자와 로그아웃 제어를 표시한다", async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(
       apiResponse({
         userId: "admin",
