@@ -20,6 +20,43 @@ describe("App menu authorization", () => {
     window.history.replaceState({}, "", "/");
   });
 
+  it("removes the non-functional top navigation while retaining the authorized sidebar", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/system/roles-permissions/menu-permissions",
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(apiResponse({ status: "UP" }))
+        .mockResolvedValueOnce(
+          apiResponse({
+            menus: [
+              {
+                menuId: "MENU-MENU-PERMISSION-MANAGEMENT",
+                menuName: "메뉴 권한 관리",
+                route: "/system/roles-permissions/menu-permissions",
+              },
+            ],
+          }),
+        ),
+    );
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("complementary", { name: "시스템 관리 메뉴" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "메뉴 권한 관리" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("navigation", { name: "주요 메뉴" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders only menus returned by the same current-user authorization response", async () => {
     window.history.replaceState(
       {},

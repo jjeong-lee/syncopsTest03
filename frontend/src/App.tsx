@@ -228,15 +228,6 @@ function SystemShell({
             </div>
           </div>
         </div>
-        <nav className="header-navigation" aria-label="주요 메뉴">
-          <div className="content-rail navigation-content">
-            <span className="all-menu-mark" aria-hidden="true">
-              ☰
-            </span>
-            <span className="menu-label">전체 메뉴</span>
-            <span className="menu-description">교수업적평가 시스템 관리</span>
-          </div>
-        </nav>
       </header>
       <div className={showSystemShell ? "system-layout" : "content-rail"}>
         {showSystemShell && (
