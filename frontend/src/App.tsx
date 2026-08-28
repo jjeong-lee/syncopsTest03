@@ -97,14 +97,6 @@ function LoginScreen({ onAuthenticated }: LoginScreenProps) {
           >
             {isSubmitting ? "로그인 중" : "로그인"}
           </button>
-          <button
-            className="login-logout-button"
-            data-testid="auth-logout-button"
-            disabled
-            type="button"
-          >
-            로그 아웃
-          </button>
         </form>
       </section>
     </main>
@@ -113,10 +105,12 @@ function LoginScreen({ onAuthenticated }: LoginScreenProps) {
 
 function SystemShell({
   initialMenus,
+  currentUserId,
   onUnauthenticated,
   onLogout,
 }: {
   initialMenus: AuthorizedMenu[] | null;
+  currentUserId: string | null;
   onUnauthenticated: () => void;
   onLogout: () => Promise<void>;
 }) {
@@ -216,6 +210,11 @@ function SystemShell({
                     ? "연결 확인 중"
                     : "연결 확인 필요"}
               </p>
+              {currentUserId && (
+                <p className="utility-copy" data-testid="shell-current-user-id">
+                  {currentUserId}
+                </p>
+              )}
               <button
                 className="shell-logout-button"
                 data-testid="shell-logout-button"
@@ -332,6 +331,7 @@ function Application() {
   return (
     <SystemShell
       initialMenus={loginMenus}
+      currentUserId={logoutCredentials?.userId ?? null}
       onUnauthenticated={handleUnauthenticated}
       onLogout={handleLogout}
     />
