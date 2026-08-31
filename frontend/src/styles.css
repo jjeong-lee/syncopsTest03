@@ -478,6 +478,64 @@ h1 {
   padding-top: 60px;
 }
 
+.school-information-lookup {
+  padding-top: 60px;
+  padding-bottom: 120px;
+}
+
+.school-information-lookup h1 {
+  margin-bottom: 40px;
+}
+
+.school-information-lookup h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.school-information-search,
+.school-information-results {
+  border-top: 2px solid #222;
+  border-bottom: 1px solid #ddd;
+  padding: 22px 0;
+}
+
+.school-information-search {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 20px;
+}
+
+.school-information-search label {
+  display: grid;
+  gap: 8px;
+  color: #666;
+  font-size: 15px;
+}
+
+.school-information-search input {
+  min-width: 0;
+  height: 44px;
+  border: 1px solid #d3d3d3;
+  background: #fff;
+  padding: 0 12px;
+  color: #222;
+}
+
+.school-information-search .form-actions {
+  grid-column: 1 / -1;
+}
+
+.school-information-results {
+  margin-top: 40px;
+}
+
+.result-count {
+  margin: 0;
+  color: #4369e3;
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .role-management {
   padding-top: 60px;
   padding-bottom: 120px;
