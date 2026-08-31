@@ -126,6 +126,7 @@ describe("App menu authorization", () => {
     ["/system/roles-permissions/menu-permissions", "메뉴 권한 관리"],
     ["/system/menus/structure", "메뉴 구조 관리"],
     ["/system/menus/information", "메뉴 정보 관리"],
+    ["/system/external-integrations/school-information", "학교정보 조회"],
     ["/system/common-codes/groups", "코드그룹 관리"],
     [
       "/system/common-codes/detail-codes?groupId=CG-EMPLOYMENT-STATUS",

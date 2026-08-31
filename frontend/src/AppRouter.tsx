@@ -7,6 +7,7 @@ import { MenuInformationManagementPage } from "./features/menus/MenuInformationM
 import { MenuStructureManagementPage } from "./features/menus/MenuStructureManagementPage";
 import { OrganizationManagementPage } from "./features/organizations/OrganizationManagementPage";
 import { RoleManagementPage } from "./features/roles/RoleManagementPage";
+import { SchoolInformationLookupPage } from "./features/school-information/SchoolInformationLookupPage";
 import { UserRoleManagementPage } from "./features/user-roles/UserRoleManagementPage";
 import { UserManagementPage } from "./features/users/UserManagementPage";
 
@@ -111,6 +112,13 @@ export function AppRouter({ isReady, permittedRoutes }: AppRouterProps) {
         element={protectedRoute(
           "/system/menus/information",
           <MenuInformationManagementPage />,
+        )}
+      />
+      <Route
+        path="/system/external-integrations/school-information"
+        element={protectedRoute(
+          "/system/external-integrations/school-information",
+          <SchoolInformationLookupPage />,
         )}
       />
       <Route

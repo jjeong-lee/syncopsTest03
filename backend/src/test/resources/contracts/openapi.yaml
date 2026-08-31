@@ -1113,6 +1113,74 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+  /external-integrations/schools:
+    get:
+      operationId: listSchoolInformation
+      summary: School information lookup
+      security:
+      - sessionCookie: []
+      x-roles:
+      - R09
+      x-related-requirements:
+      - REQ-054
+      - REQ-056
+      - REQ-057
+      - REQ-058
+      - REQ-061
+      - REQ-062
+      - REQ-065
+      - REQ-067
+      parameters:
+      - name: schoolName
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: educationOfficeCode
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: pIndex
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 1
+          minimum: 1
+      - name: pSize
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 100
+          minimum: 1
+      x-pagination-filtering-contract: Optional schoolName and educationOfficeCode filters; pIndex defaults to 1 and pSize defaults to 100.
+      responses:
+        '200':
+          description: School lookup result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '400':
+          description: Invalid lookup request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
 components:
   securitySchemes:
     sessionCookie:
@@ -1353,6 +1421,27 @@ components:
         reason:
           type: string
 x-uncovered-requirements:
+- canonical_id: REQ-053
+  status: data-constraint
+  evidence: Menu registration is persisted by the menu migration, not this read-only operation.
+- canonical_id: REQ-055
+  status: data-constraint
+  evidence: Transient lookup results specifically require no database persistence path.
+- canonical_id: REQ-059
+  status: non-functional
+  evidence: The personnel-shaped Port/Adapter boundary is owned by architecture.md.
+- canonical_id: REQ-060
+  status: data-constraint
+  evidence: The absence of a Mapper is a persistence boundary, not an HTTP operation.
+- canonical_id: REQ-063
+  status: non-functional
+  evidence: NEIS_OPEN_API_KEY environment handling is runtime configuration.
+- canonical_id: REQ-064
+  status: data-constraint
+  evidence: menu and menu_permission migration is the implementation owner.
+- canonical_id: REQ-066
+  status: screen-only
+  evidence: Paired page tests own success, empty, and error rendering verification.
 - canonical_id: REQ-037
   status: non-functional
   evidence: 프론트엔드 기술 구성은 HTTP operation이 아닌 런타임/기술 제약이다.

@@ -25,3 +25,8 @@ app:
   auth:
     session:
       secure: false
+  neis:
+    school-info-url: ${NEIS_SCHOOL_INFO_URL:https://open.neis.go.kr/hub/schoolInfo}
+    open-api-key: ${NEIS_OPEN_API_KEY:}
+    connect-timeout-millis: ${NEIS_CONNECT_TIMEOUT_MILLIS:3000}
+    read-timeout-millis: ${NEIS_READ_TIMEOUT_MILLIS:5000}
