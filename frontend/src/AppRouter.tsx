@@ -9,6 +9,11 @@ import { OrganizationManagementPage } from "./features/organizations/Organizatio
 import { RoleManagementPage } from "./features/roles/RoleManagementPage";
 import { UserRoleManagementPage } from "./features/user-roles/UserRoleManagementPage";
 import { UserManagementPage } from "./features/users/UserManagementPage";
+import {
+  PositionAssignmentManagementPage,
+  RoleDataScopeManagementPage,
+  WorkAssignmentManagementPage,
+} from "./features/assignments/AssignmentManagementPages";
 
 type AppRouterProps = {
   isReady: boolean;
@@ -79,6 +84,20 @@ export function AppRouter({ isReady, permittedRoutes }: AppRouterProps) {
         )}
       />
       <Route
+        path="/system/user-organization/positions"
+        element={protectedRoute(
+          "/system/user-organization/positions",
+          <PositionAssignmentManagementPage />,
+        )}
+      />
+      <Route
+        path="/system/user-organization/work-assignments"
+        element={protectedRoute(
+          "/system/user-organization/work-assignments",
+          <WorkAssignmentManagementPage />,
+        )}
+      />
+      <Route
         path="/system/roles-permissions/roles"
         element={protectedRoute(
           "/system/roles-permissions/roles",
@@ -97,6 +116,13 @@ export function AppRouter({ isReady, permittedRoutes }: AppRouterProps) {
         element={protectedRoute(
           "/system/roles-permissions/menu-permissions",
           <MenuPermissionManagementPage />,
+        )}
+      />
+      <Route
+        path="/system/roles-permissions/data-scopes"
+        element={protectedRoute(
+          "/system/roles-permissions/data-scopes",
+          <RoleDataScopeManagementPage />,
         )}
       />
       <Route
