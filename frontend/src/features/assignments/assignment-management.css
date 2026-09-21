@@ -1,0 +1,90 @@
+.assignment-management {
+  padding-top: 60px;
+  padding-bottom: 120px;
+}
+
+.assignment-management h1 {
+  margin-bottom: 40px;
+}
+
+.assignment-management h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.assignment-search,
+.assignment-results,
+.assignment-detail,
+.assignment-form {
+  border-top: 2px solid #222;
+  border-bottom: 1px solid #ddd;
+  padding: 22px 0;
+}
+
+.assignment-search {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.assignment-search label,
+.assignment-form label {
+  display: grid;
+  gap: 8px;
+  color: #666;
+  font-size: 15px;
+}
+
+.assignment-search input,
+.assignment-search select,
+.assignment-form input,
+.assignment-form select {
+  min-width: 160px;
+  height: 44px;
+  border: 1px solid #d3d3d3;
+  background: #fff;
+  padding: 10px 12px;
+  color: #222;
+}
+
+.assignment-results,
+.assignment-detail {
+  margin-top: 40px;
+}
+
+.assignment-detail {
+  display: grid;
+  gap: 8px;
+}
+
+.assignment-detail p {
+  margin: 0;
+}
+
+.assignment-modal {
+  width: min(100%, 720px);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  padding: 28px;
+  border: 1px solid #ddd;
+  background: #fff;
+}
+
+.assignment-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+
+@media (max-width: 720px) {
+  .assignment-search {
+    display: grid;
+    align-items: stretch;
+  }
+
+  .assignment-form {
+    grid-template-columns: 1fr;
+  }
+}
