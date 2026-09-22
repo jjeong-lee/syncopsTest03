@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import kr.ac.knue.facultyassessment.common.ApiError;
+import kr.ac.knue.facultyassessment.common.UsageAuthorizationService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -20,11 +21,18 @@ public class SessionAuthorizationFilter extends OncePerRequestFilter {
     public static final String AUTHENTICATED_USER_ATTRIBUTE = "authenticatedUser";
     private final AuthenticationPort authenticationPort;
     private final MenuAuthorizationService menuAuthorizationService;
+    private final UsageAuthorizationService usageAuthorizationService;
     private final ObjectMapper objectMapper;
 
-    public SessionAuthorizationFilter(AuthenticationPort authenticationPort, MenuAuthorizationService menuAuthorizationService, ObjectMapper objectMapper) {
+    public SessionAuthorizationFilter(
+        AuthenticationPort authenticationPort,
+        MenuAuthorizationService menuAuthorizationService,
+        UsageAuthorizationService usageAuthorizationService,
+        ObjectMapper objectMapper
+    ) {
         this.authenticationPort = authenticationPort;
         this.menuAuthorizationService = menuAuthorizationService;
+        this.usageAuthorizationService = usageAuthorizationService;
         this.objectMapper = objectMapper;
     }
 
@@ -43,7 +51,10 @@ public class SessionAuthorizationFilter extends OncePerRequestFilter {
             writeError(response, HttpServletResponse.SC_UNAUTHORIZED, "UNAUTHENTICATED", "인증 세션이 필요합니다.");
             return;
         }
-        if (!request.getRequestURI().startsWith("/api/auth/") && !menuAuthorizationService.canAccess(user, request.getRequestURI())) {
+        String requestPath = request.getRequestURI();
+        String requiredMenuId = menuAuthorizationService.requiredMenuId(requestPath);
+        if (!requestPath.startsWith("/api/auth/")
+            && (!menuAuthorizationService.canAccess(user, requestPath) || !usageAuthorizationService.canAccessMenu(requiredMenuId))) {
             writeError(response, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "접근 권한이 없습니다.");
             return;
         }

@@ -34,10 +34,10 @@
 
   <insert id="insertDetailCode">
     INSERT INTO detail_code (
-      detail_code_id, group_id, code_value, code_name, parent_detail_code_id, display_order, additional_attributes, use_yn
+      detail_code_id, group_id, code_value, code_name, parent_detail_code_id, display_order, additional_attributes, use_yn, effective_start_date
     ) VALUES (
       #{detailCodeId}, #{groupId}, #{request.codeValue}, #{request.codeName},
-      NULLIF(#{request.parentDetailCodeId}, ''), #{request.displayOrder}, CAST(#{additionalAttributes} AS jsonb), #{useYn}
+      NULLIF(#{request.parentDetailCodeId}, ''), #{request.displayOrder}, CAST(#{additionalAttributes} AS jsonb), #{useYn}, current_date
     )
   </insert>
 

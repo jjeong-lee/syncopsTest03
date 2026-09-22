@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.ac.knue.facultyassessment.commonenvironmentsettings.CommonEnvironmentSettingsMapper">
+  <sql id="columns">setting_key AS "settingKey", setting_value AS "settingValue"</sql>
+  <select id="findCommonEnvironmentSettings" resultType="kr.ac.knue.facultyassessment.commonenvironmentsettings.CommonEnvironmentSetting">
+    SELECT <include refid="columns" /> FROM common_environment_setting
+    <where>
+      deleted_yn = 'N'
+      <if test="criteria.settingKey != null and criteria.settingKey != ''">AND setting_key ILIKE '%' || #{criteria.settingKey} || '%'</if>
+    </where>
+    ORDER BY setting_key LIMIT #{criteria.size} OFFSET (#{criteria.page} * #{criteria.size})
+  </select>
+  <select id="findCommonEnvironmentSetting" resultType="kr.ac.knue.facultyassessment.commonenvironmentsettings.CommonEnvironmentSetting">
+    SELECT <include refid="columns" /> FROM common_environment_setting WHERE setting_key = #{settingKey} AND deleted_yn = 'N'
+  </select>
+  <insert id="saveCommonEnvironmentSetting">
+    INSERT INTO common_environment_setting (common_environment_setting_id, setting_key, setting_value, created_by, updated_by)
+    VALUES (#{settingId}, #{request.settingKey}, #{request.settingValue}, #{actorUserId}, #{actorUserId})
+    ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = current_timestamp, updated_by = EXCLUDED.updated_by, deleted_yn = 'N'
+  </insert>
+  <insert id="insertChangeHistory">
+    INSERT INTO change_history (change_history_id, entity_name, entity_id, before_value, after_value, actor_user_id, changed_at, status)
+    VALUES (#{changeHistoryId}, 'common_environment_setting', #{entityId}, CAST(#{beforeValue} AS jsonb), CAST(#{afterValue} AS jsonb), #{actorUserId}, current_timestamp, 'RECORDED')
+  </insert>
+</mapper>
