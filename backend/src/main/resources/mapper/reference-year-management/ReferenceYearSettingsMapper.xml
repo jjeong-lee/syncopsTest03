@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.ac.knue.facultyassessment.referenceyearmanagement.ReferenceYearSettingsMapper">
+  <sql id="columns">
+    configuration.current_evaluation_year AS "currentEvaluationYear",
+    configuration.default_query_year AS "defaultQueryYear",
+    target.target_year AS "targetYear",
+    target.baseline_copy_yn AS "baselineCopyYn",
+    target.initialization_yn AS "initializationYn"
+  </sql>
+  <select id="findReferenceYearSettings" resultType="kr.ac.knue.facultyassessment.referenceyearmanagement.ReferenceYearSetting">
+    SELECT <include refid="columns" />
+    FROM reference_year_setting target
+    JOIN reference_year_setting configuration
+      ON configuration.target_year IS NULL AND configuration.deleted_yn = 'N'
+    <where>
+      target.deleted_yn = 'N'
+      AND target.target_year IS NOT NULL
+      <if test="criteria.targetYear != null">AND target.target_year = #{criteria.targetYear}</if>
+    </where>
+    ORDER BY target.target_year DESC
+    LIMIT #{criteria.size} OFFSET (#{criteria.page} * #{criteria.size})
+  </select>
+  <select id="findReferenceYearSetting" resultType="kr.ac.knue.facultyassessment.referenceyearmanagement.ReferenceYearSetting">
+    SELECT <include refid="columns" />
+    FROM reference_year_setting target
+    JOIN reference_year_setting configuration
+      ON configuration.target_year IS NULL AND configuration.deleted_yn = 'N'
+    WHERE target.target_year = #{targetYear} AND target.deleted_yn = 'N'
+  </select>
+  <insert id="saveConfiguration">
+    INSERT INTO reference_year_setting (
+      reference_year_setting_id, current_evaluation_year, default_query_year, created_by, updated_by
+    ) VALUES (
+      #{settingId}, #{request.currentEvaluationYear}, #{request.defaultQueryYear}, #{actorUserId}, #{actorUserId}
+    )
+    ON CONFLICT ((1)) WHERE deleted_yn = 'N' AND target_year IS NULL
+    DO UPDATE SET current_evaluation_year = EXCLUDED.current_evaluation_year,
+                  default_query_year = EXCLUDED.default_query_year,
+                  updated_at = current_timestamp,
+                  updated_by = EXCLUDED.updated_by,
+                  deleted_yn = 'N'
+  </insert>
+  <insert id="saveTargetSetting">
+    INSERT INTO reference_year_setting (
+      reference_year_setting_id, target_year, baseline_copy_yn, initialization_yn, created_by, updated_by
+    ) VALUES (
+      #{settingId}, #{request.targetYear}, #{request.baselineCopyYn}, #{request.initializationYn}, #{actorUserId}, #{actorUserId}
+    )
+    ON CONFLICT (target_year) WHERE deleted_yn = 'N' AND target_year IS NOT NULL
+    DO UPDATE SET baseline_copy_yn = EXCLUDED.baseline_copy_yn,
+                  initialization_yn = EXCLUDED.initialization_yn,
+                  updated_at = current_timestamp,
+                  updated_by = EXCLUDED.updated_by,
+                  deleted_yn = 'N'
+  </insert>
+  <insert id="insertChangeHistory">
+    INSERT INTO change_history (change_history_id, entity_name, entity_id, before_value, after_value, actor_user_id, changed_at, status)
+    VALUES (#{changeHistoryId}, 'reference_year_setting', #{entityId}, CAST(#{beforeValue} AS jsonb), CAST(#{afterValue} AS jsonb), #{actorUserId}, current_timestamp, 'RECORDED')
+  </insert>
+</mapper>

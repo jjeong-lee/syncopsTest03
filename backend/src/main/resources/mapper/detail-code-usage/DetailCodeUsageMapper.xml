@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.ac.knue.facultyassessment.detailcodeusage.DetailCodeUsageMapper">
+  <sql id="detailCodeUsageColumns">
+    group_id AS "groupId",
+    code_value AS "codeValue",
+    use_yn AS "useYn",
+    effective_start_date AS "effectiveStartDate",
+    effective_end_date AS "effectiveEndDate"
+  </sql>
+
+  <select id="findDetailCodeUsageSettings" resultType="kr.ac.knue.facultyassessment.detailcodeusage.DetailCodeUsageSetting">
+    SELECT <include refid="detailCodeUsageColumns" />
+    FROM detail_code
+    <where>
+      <if test="criteria.groupId != null and criteria.groupId != ''">
+        group_id ILIKE '%' || #{criteria.groupId} || '%'
+      </if>
+      <if test="criteria.codeValue != null and criteria.codeValue != ''">
+        <if test="criteria.groupId != null and criteria.groupId != ''">AND</if>
+        code_value ILIKE '%' || #{criteria.codeValue} || '%'
+      </if>
+      <if test="criteria.useYn != null and criteria.useYn != ''">
+        <if test="(criteria.groupId != null and criteria.groupId != '') or (criteria.codeValue != null and criteria.codeValue != '')">AND</if>
+        use_yn = #{criteria.useYn}
+      </if>
+    </where>
+    ORDER BY group_id, code_value
+    LIMIT #{criteria.size} OFFSET (#{criteria.page} * #{criteria.size})
+  </select>
+
+  <select id="findDetailCodeUsageSetting" resultType="kr.ac.knue.facultyassessment.detailcodeusage.DetailCodeUsageSetting">
+    SELECT <include refid="detailCodeUsageColumns" />
+    FROM detail_code
+    WHERE group_id = #{groupId}
+      AND code_value = #{codeValue}
+  </select>
+
+  <update id="updateDetailCodeUsage">
+    UPDATE detail_code
+    SET use_yn = #{request.useYn},
+        effective_start_date = #{request.effectiveStartDate},
+        effective_end_date = #{request.effectiveEndDate},
+        updated_at = current_timestamp,
+        updated_by = #{actorUserId}
+    WHERE group_id = #{request.groupId}
+      AND code_value = #{request.codeValue}
+  </update>
+
+  <insert id="insertChangeHistory">
+    INSERT INTO change_history (
+      change_history_id, entity_name, entity_id, before_value, after_value, actor_user_id, changed_at, status
+    ) VALUES (
+      #{changeHistoryId}, 'detail_code', #{entityId}, CAST(#{beforeValue} AS jsonb), CAST(#{afterValue} AS jsonb),
+      #{actorUserId}, current_timestamp, 'RECORDED'
+    )
+  </insert>
+</mapper>

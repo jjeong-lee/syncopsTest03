@@ -10,6 +10,10 @@ import org.springframework.stereotype.Component;
 public class MenuAuthorizationService {
 
     private static final List<Map.Entry<String, String>> PROTECTED_PATH_MENUS = List.of(
+        Map.entry("/api/system/settings/reference-years", "MENU-REFERENCE-YEAR-MANAGEMENT"),
+        Map.entry("/api/system/settings/common-environment", "MENU-COMMON-ENVIRONMENT-SETTINGS"),
+        Map.entry("/api/system/menus/usage", "MENU-MENU-USAGE-MANAGEMENT"),
+        Map.entry("/api/system/common-codes/usage", "MENU-DETAIL-CODE-USAGE-MANAGEMENT"),
         Map.entry("/api/position-assignments", "MENU-POSITION-ASSIGNMENT-MANAGEMENT"),
         Map.entry("/api/work-assignments", "MENU-WORK-ASSIGNMENT-MANAGEMENT"),
         Map.entry("/api/role-data-scopes", "MENU-ROLE-DATA-SCOPE-MANAGEMENT"),
@@ -24,11 +28,15 @@ public class MenuAuthorizationService {
     );
 
     public boolean canAccess(AuthenticationPort.AuthenticatedUser user, String requestPath) {
-        String requiredMenuId = PROTECTED_PATH_MENUS.stream()
+        String requiredMenuId = requiredMenuId(requestPath);
+        return requiredMenuId == null || user.menus().stream().anyMatch(menu -> requiredMenuId.equals(menu.menuId()));
+    }
+
+    public String requiredMenuId(String requestPath) {
+        return PROTECTED_PATH_MENUS.stream()
             .filter(entry -> requestPath.startsWith(entry.getKey()))
             .map(Map.Entry::getValue)
             .findFirst()
             .orElse(null);
-        return requiredMenuId == null || user.menus().stream().anyMatch(menu -> requiredMenuId.equals(menu.menuId()));
     }
 }

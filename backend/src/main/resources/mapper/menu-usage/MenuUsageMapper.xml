@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.ac.knue.facultyassessment.menuusage.MenuUsageMapper">
+  <sql id="menuUsageColumns">
+    menu_id AS "menuId",
+    use_yn AS "useYn",
+    exposure_start_at AS "exposureStartAt",
+    exposure_end_at AS "exposureEndAt"
+  </sql>
+
+  <select id="findMenuUsageSettings" resultType="kr.ac.knue.facultyassessment.menuusage.MenuUsageSetting">
+    SELECT <include refid="menuUsageColumns" />
+    FROM menu
+    <where>
+      <if test="criteria.menuId != null and criteria.menuId != ''">
+        menu_id ILIKE '%' || #{criteria.menuId} || '%'
+      </if>
+      <if test="criteria.useYn != null and criteria.useYn != ''">
+        <if test="criteria.menuId != null and criteria.menuId != ''">AND</if>
+        use_yn = #{criteria.useYn}
+      </if>
+    </where>
+    ORDER BY menu_id
+    LIMIT #{criteria.size} OFFSET (#{criteria.page} * #{criteria.size})
+  </select>
+
+  <select id="findMenuUsageSetting" resultType="kr.ac.knue.facultyassessment.menuusage.MenuUsageSetting">
+    SELECT <include refid="menuUsageColumns" />
+    FROM menu
+    WHERE menu_id = #{menuId}
+  </select>
+
+  <update id="updateMenuUsage">
+    UPDATE menu
+    SET use_yn = #{request.useYn},
+        exposure_start_at = #{request.exposureStartAt},
+        exposure_end_at = #{request.exposureEndAt},
+        updated_at = current_timestamp,
+        updated_by = #{actorUserId}
+    WHERE menu_id = #{request.menuId}
+  </update>
+
+  <insert id="insertChangeHistory">
+    INSERT INTO change_history (
+      change_history_id, entity_name, entity_id, before_value, after_value, actor_user_id, changed_at, status
+    ) VALUES (
+      #{changeHistoryId}, 'menu', #{entityId}, CAST(#{beforeValue} AS jsonb), CAST(#{afterValue} AS jsonb),
+      #{actorUserId}, current_timestamp, 'RECORDED'
+    )
+  </insert>
+</mapper>
