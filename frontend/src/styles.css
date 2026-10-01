@@ -938,6 +938,76 @@ h1 {
   padding-top: 60px;
 }
 
+.menu-usage-management h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.menu-usage-description {
+  max-width: 720px;
+  margin: -14px 0 0;
+  color: #666;
+  line-height: 1.65;
+}
+
+.menu-usage-search,
+.menu-usage-results {
+  border-top: 2px solid #222;
+  border-bottom: 1px solid #ddd;
+  padding: 22px 0;
+}
+
+.menu-usage-search {
+  margin-top: 28px;
+}
+
+.menu-usage-results {
+  margin-top: 40px;
+}
+
+.menu-usage-modal {
+  width: min(100%, 680px);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  padding: 28px;
+  border: 1px solid #ddd;
+  background: #fff;
+  animation: modal-enter 250ms ease-in-out;
+}
+
+.menu-usage-modal > p {
+  margin: 20px 0 0;
+  color: #666;
+}
+
+.menu-usage-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 20px;
+  margin-top: 22px;
+}
+
+.menu-usage-form label {
+  display: grid;
+  gap: 8px;
+  color: #666;
+  font-size: 15px;
+}
+
+.menu-usage-form input,
+.menu-usage-form select {
+  min-width: 0;
+  height: 44px;
+  border: 1px solid #d3d3d3;
+  padding: 0 12px;
+  color: #222;
+  background: #fff;
+}
+
+.menu-usage-state {
+  padding-top: 60px;
+}
+
 .code-group-management {
   padding-top: 60px;
   padding-bottom: 120px;
@@ -1206,6 +1276,7 @@ h1 {
   .menu-structure-search,
   .menu-structure-editor,
   .menu-information-form,
+  .menu-usage-form,
   .code-group-form,
   .detail-code-form {
     grid-template-columns: 1fr;
@@ -1419,6 +1490,10 @@ h1 {
 .menu-permission-management,
 .menu-structure-management,
 .menu-information-management,
+.menu-usage-management,
+.code-usage-management,
+.common-environment-settings,
+.reference-year-management,
 .code-group-management,
 .detail-code-management {
   padding-top: 0;
@@ -1436,6 +1511,10 @@ h1 {
 .menu-permission-management h1,
 .menu-structure-management h1,
 .menu-information-management h1,
+.menu-usage-management h1,
+.code-usage-management h1,
+.common-environment-settings h1,
+.reference-year-management h1,
 .code-group-management h1,
 .detail-code-management h1 {
   margin-bottom: 34px;
@@ -1448,6 +1527,9 @@ h1 {
 .menu-permission-search,
 .menu-structure-search,
 .menu-information-search,
+.menu-usage-search,
+.code-usage-search,
+.settings-form,
 .code-group-search,
 .detail-code-context,
 .detail-code-search {
@@ -1495,6 +1577,51 @@ h1 {
   }
 }
 
+.settings-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 28px;
+}
+
+.settings-form label {
+  display: grid;
+  gap: 8px;
+  color: #444;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.settings-form input,
+.settings-form select {
+  min-height: 44px;
+  border: 1px solid #d3d3d3;
+  padding: 0 12px;
+  background: #ffffff;
+}
+
+.settings-form .form-actions {
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+}
+
+.field-error {
+  color: #733181;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.settings-confirmation {
+  width: min(100% - 32px, 560px);
+  padding: 28px;
+  background: #ffffff;
+  box-shadow: 0 12px 32px rgba(34, 34, 34, 0.16);
+}
+
+.settings-confirmation > p {
+  margin: 8px 0;
+  color: #555;
+}
+
 @media (max-width: 1175px) {
   .system-layout {
     grid-template-columns: 182px minmax(0, 1fr);
@@ -1506,6 +1633,10 @@ h1 {
   }
 }
 @media (max-width: 820px) {
+  .settings-form {
+    grid-template-columns: 1fr;
+  }
+
   .header-search {
     display: none;
   }

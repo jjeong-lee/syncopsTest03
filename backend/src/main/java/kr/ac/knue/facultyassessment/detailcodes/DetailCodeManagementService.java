@@ -3,6 +3,7 @@ package kr.ac.knue.facultyassessment.detailcodes;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import kr.ac.knue.facultyassessment.common.ApiException;
@@ -31,6 +32,7 @@ public class DetailCodeManagementService {
     public void saveDetailCode(String groupId, DetailCodeRequest request, String actorUserId) {
         validateUseYn(request.useYn());
         validateAdditionalAttributes(request.additionalAttributes());
+        validateApplicationPeriod(request.applicationStartDate(), request.applicationEndDate());
         DetailCodeRow before = detailCodeManagementMapper.findDetailCodeByGroupAndCode(groupId, request.codeValue());
         String useYn = normalizedUseYn(request.useYn(), before == null ? "Y" : before.useYn());
         String additionalAttributes = serializeAttributes(request.additionalAttributes());
@@ -69,6 +71,17 @@ public class DetailCodeManagementService {
         }
     }
 
+    private void validateApplicationPeriod(LocalDate applicationStartDate, LocalDate applicationEndDate) {
+        if (applicationEndDate != null && applicationEndDate.isBefore(applicationStartDate)) {
+            throw new ApiException(
+                HttpStatus.BAD_REQUEST,
+                "INVALID_APPLICATION_PERIOD",
+                "적용 종료일은 시작일보다 빠를 수 없습니다.",
+                "applicationEndDate"
+            );
+        }
+    }
+
     private String serializeAttributes(JsonNode additionalAttributes) {
         if (additionalAttributes == null || additionalAttributes.isNull()) {
             return null;
@@ -84,7 +97,9 @@ public class DetailCodeManagementService {
             row.parentDetailCodeId(),
             row.displayOrder(),
             readAttributes(row.additionalAttributes()),
-            row.useYn()
+            row.useYn(),
+            row.applicationStartDate(),
+            row.applicationEndDate()
         );
     }
 
@@ -117,7 +132,9 @@ public class DetailCodeManagementService {
         String parentDetailCodeId,
         Integer displayOrder,
         String additionalAttributes,
-        String useYn
+        String useYn,
+        LocalDate applicationStartDate,
+        LocalDate applicationEndDate
     ) {
     }
 
@@ -128,7 +145,9 @@ public class DetailCodeManagementService {
         String parentDetailCodeId,
         Integer displayOrder,
         JsonNode additionalAttributes,
-        String useYn
+        String useYn,
+        LocalDate applicationStartDate,
+        LocalDate applicationEndDate
     ) {
     }
 }

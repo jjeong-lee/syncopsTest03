@@ -10,7 +10,9 @@
     parent_detail_code_id AS "parentDetailCodeId",
     display_order AS "displayOrder",
     additional_attributes::text AS "additionalAttributes",
-    use_yn AS "useYn"
+    use_yn AS "useYn",
+    application_start_date AS "applicationStartDate",
+    application_end_date AS "applicationEndDate"
   </sql>
 
   <select id="findDetailCodes" resultType="kr.ac.knue.facultyassessment.detailcodes.DetailCodeManagementService$DetailCodeRow">
@@ -20,6 +22,11 @@
       group_id = #{criteria.groupId}
       <if test="criteria.useYn != null and criteria.useYn != ''">
         AND use_yn = #{criteria.useYn}
+      </if>
+      <if test="!criteria.includeEnded">
+        AND use_yn = 'Y'
+        AND application_start_date &lt;= current_date
+        AND (application_end_date IS NULL OR application_end_date &gt;= current_date)
       </if>
     </where>
     ORDER BY display_order, code_value
@@ -34,10 +41,12 @@
 
   <insert id="insertDetailCode">
     INSERT INTO detail_code (
-      detail_code_id, group_id, code_value, code_name, parent_detail_code_id, display_order, additional_attributes, use_yn
+      detail_code_id, group_id, code_value, code_name, parent_detail_code_id, display_order, additional_attributes, use_yn,
+      application_start_date, application_end_date
     ) VALUES (
       #{detailCodeId}, #{groupId}, #{request.codeValue}, #{request.codeName},
-      NULLIF(#{request.parentDetailCodeId}, ''), #{request.displayOrder}, CAST(#{additionalAttributes} AS jsonb), #{useYn}
+      NULLIF(#{request.parentDetailCodeId}, ''), #{request.displayOrder}, CAST(#{additionalAttributes} AS jsonb), #{useYn},
+      #{request.applicationStartDate}, #{request.applicationEndDate}
     )
   </insert>
 
@@ -48,6 +57,8 @@
         display_order = #{request.displayOrder},
         additional_attributes = CAST(#{additionalAttributes} AS jsonb),
         use_yn = #{useYn},
+        application_start_date = #{request.applicationStartDate},
+        application_end_date = #{request.applicationEndDate},
         updated_at = current_timestamp
     WHERE detail_code_id = #{detailCodeId}
   </update>

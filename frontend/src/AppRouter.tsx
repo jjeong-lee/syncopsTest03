@@ -1,12 +1,16 @@
 import type { ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { CodeGroupManagementPage } from "./features/code-groups/CodeGroupManagementPage";
+import { CodeUsageManagementPage } from "./features/detail-codes/CodeUsageManagementPage";
 import { DetailCodeManagementPage } from "./features/detail-codes/DetailCodeManagementPage";
 import { MenuPermissionManagementPage } from "./features/menu-permissions/MenuPermissionManagementPage";
 import { MenuInformationManagementPage } from "./features/menus/MenuInformationManagementPage";
 import { MenuStructureManagementPage } from "./features/menus/MenuStructureManagementPage";
+import { MenuUsageManagementPage } from "./features/menus/MenuUsageManagementPage";
 import { OrganizationManagementPage } from "./features/organizations/OrganizationManagementPage";
 import { RoleManagementPage } from "./features/roles/RoleManagementPage";
+import { CommonEnvironmentSettingsPage } from "./features/settings/CommonEnvironmentSettingsPage";
+import { ReferenceYearManagementPage } from "./features/settings/ReferenceYearManagementPage";
 import { UserRoleManagementPage } from "./features/user-roles/UserRoleManagementPage";
 import { UserManagementPage } from "./features/users/UserManagementPage";
 import {
@@ -140,6 +144,13 @@ export function AppRouter({ isReady, permittedRoutes }: AppRouterProps) {
         )}
       />
       <Route
+        path="/system/menus/usage"
+        element={protectedRoute(
+          "/system/menus/usage",
+          <MenuUsageManagementPage />,
+        )}
+      />
+      <Route
         path="/system/common-codes/groups"
         element={protectedRoute(
           "/system/common-codes/groups",
@@ -151,6 +162,27 @@ export function AppRouter({ isReady, permittedRoutes }: AppRouterProps) {
         element={protectedRoute(
           "/system/common-codes/detail-codes",
           <DetailCodeManagementPage />,
+        )}
+      />
+      <Route
+        path="/system/common-codes/usage"
+        element={protectedRoute(
+          "/system/common-codes/usage",
+          <CodeUsageManagementPage />,
+        )}
+      />
+      <Route
+        path="/system/settings/common"
+        element={protectedRoute(
+          "/system/settings/common",
+          <CommonEnvironmentSettingsPage />,
+        )}
+      />
+      <Route
+        path="/system/settings/reference-year"
+        element={protectedRoute(
+          "/system/settings/reference-year",
+          <ReferenceYearManagementPage />,
         )}
       />
       <Route path="*" element={<Navigate replace to="/" />} />

@@ -13,7 +13,7 @@ public class AuthenticationConfiguration {
     FilterRegistrationBean<SessionAuthorizationFilter> sessionAuthorizationFilterRegistration(SessionAuthorizationFilter filter) {
         FilterRegistrationBean<SessionAuthorizationFilter> registration = new FilterRegistrationBean<>();
         registration.setFilter(filter);
-        registration.addUrlPatterns("/api/*");
+        registration.addUrlPatterns("/*");
         registration.setOrder(1);
         return registration;
     }

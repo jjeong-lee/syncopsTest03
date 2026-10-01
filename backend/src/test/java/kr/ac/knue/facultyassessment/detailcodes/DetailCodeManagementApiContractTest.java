@@ -40,7 +40,7 @@ class DetailCodeManagementApiContractTest {
         mockMvc.perform(post("/api/code-groups/{groupId}/detail-codes", "CG-TEST-DETAIL")
                 .cookie(session)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"codeValue\":\"PARENT\",\"codeName\":\"상위 코드\",\"displayOrder\":1,\"additionalAttributes\":{\"mappingKey\":\"PARENT-MAP\"},\"useYn\":\"Y\",\"reason\":\"상위 코드 등록\"}"))
+                .content("{\"codeValue\":\"PARENT\",\"codeName\":\"상위 코드\",\"displayOrder\":1,\"additionalAttributes\":{\"mappingKey\":\"PARENT-MAP\"},\"useYn\":\"Y\",\"applicationStartDate\":\"2020-01-01\",\"reason\":\"상위 코드 등록\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true));
 
@@ -52,14 +52,14 @@ class DetailCodeManagementApiContractTest {
         mockMvc.perform(post("/api/code-groups/{groupId}/detail-codes", "CG-TEST-DETAIL")
                 .cookie(session)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"codeValue\":\"CHILD\",\"codeName\":\"하위 코드\",\"parentDetailCodeId\":\"" + parentDetailCodeId + "\",\"displayOrder\":2,\"additionalAttributes\":{\"mappingKey\":\"CHILD-MAP\",\"externalCode\":\"EXT-01\"},\"useYn\":\"Y\",\"reason\":\"하위 코드 등록\"}"))
+                .content("{\"codeValue\":\"CHILD\",\"codeName\":\"하위 코드\",\"parentDetailCodeId\":\"" + parentDetailCodeId + "\",\"displayOrder\":2,\"additionalAttributes\":{\"mappingKey\":\"CHILD-MAP\",\"externalCode\":\"EXT-01\"},\"useYn\":\"Y\",\"applicationStartDate\":\"2020-01-01\",\"reason\":\"하위 코드 등록\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true));
 
         mockMvc.perform(post("/api/code-groups/{groupId}/detail-codes", "CG-TEST-DETAIL")
                 .cookie(session)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"codeValue\":\"CHILD\",\"codeName\":\"수정된 하위 코드\",\"parentDetailCodeId\":\"" + parentDetailCodeId + "\",\"displayOrder\":3,\"additionalAttributes\":{\"mappingKey\":\"CHILD-MAP-UPDATED\"},\"useYn\":\"Y\",\"reason\":\"정렬순서와 연계 속성 변경\"}"))
+                .content("{\"codeValue\":\"CHILD\",\"codeName\":\"수정된 하위 코드\",\"parentDetailCodeId\":\"" + parentDetailCodeId + "\",\"displayOrder\":3,\"additionalAttributes\":{\"mappingKey\":\"CHILD-MAP-UPDATED\"},\"useYn\":\"Y\",\"applicationStartDate\":\"2020-01-01\",\"reason\":\"정렬순서와 연계 속성 변경\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true));
 
@@ -87,20 +87,20 @@ class DetailCodeManagementApiContractTest {
         mockMvc.perform(post("/api/code-groups/{groupId}/detail-codes", "CG-TEST-INACTIVE")
                 .cookie(session)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"codeName\":\"입력 오류\",\"displayOrder\":1}"))
+                .content("{\"codeName\":\"입력 오류\",\"displayOrder\":1,\"useYn\":\"Y\",\"applicationStartDate\":\"2020-01-01\"}"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.error.field").value("codeValue"));
 
         mockMvc.perform(post("/api/code-groups/{groupId}/detail-codes", "CG-TEST-INACTIVE")
                 .cookie(session)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"codeValue\":\"INACTIVE\",\"codeName\":\"비활성 대상\",\"displayOrder\":1,\"useYn\":\"Y\"}"))
+                .content("{\"codeValue\":\"INACTIVE\",\"codeName\":\"비활성 대상\",\"displayOrder\":1,\"useYn\":\"Y\",\"applicationStartDate\":\"2020-01-01\"}"))
             .andExpect(status().isOk());
 
         mockMvc.perform(post("/api/code-groups/{groupId}/detail-codes", "CG-TEST-INACTIVE")
                 .cookie(session)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"codeValue\":\"INACTIVE\",\"codeName\":\"비활성 대상\",\"displayOrder\":1,\"useYn\":\"N\",\"reason\":\"사용 중지\"}"))
+                .content("{\"codeValue\":\"INACTIVE\",\"codeName\":\"비활성 대상\",\"displayOrder\":1,\"useYn\":\"N\",\"applicationStartDate\":\"2020-01-01\",\"reason\":\"사용 중지\"}"))
             .andExpect(status().isOk());
 
         Assertions.assertEquals("N", jdbcTemplate.queryForObject(

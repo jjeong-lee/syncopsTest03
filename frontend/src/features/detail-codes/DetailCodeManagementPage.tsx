@@ -9,6 +9,8 @@ type DetailCode = {
   displayOrder: number;
   additionalAttributes: Record<string, unknown> | null;
   useYn: string;
+  applicationStartDate: string;
+  applicationEndDate: string | null;
 };
 
 type DetailCodeForm = {
@@ -18,6 +20,8 @@ type DetailCodeForm = {
   displayOrder: string;
   additionalAttributes: string;
   useYn: string;
+  applicationStartDate: string;
+  applicationEndDate: string;
   reason: string;
 };
 
@@ -28,6 +32,8 @@ const emptyForm: DetailCodeForm = {
   displayOrder: "",
   additionalAttributes: "",
   useYn: "Y",
+  applicationStartDate: "",
+  applicationEndDate: "",
   reason: "",
 };
 
@@ -50,6 +56,8 @@ function toForm(detailCode: DetailCode): DetailCodeForm {
       ? JSON.stringify(detailCode.additionalAttributes)
       : "",
     useYn: detailCode.useYn,
+    applicationStartDate: detailCode.applicationStartDate,
+    applicationEndDate: detailCode.applicationEndDate ?? "",
     reason: "",
   };
 }
@@ -153,6 +161,8 @@ export function DetailCodeManagementPage() {
           displayOrder: form.displayOrder ? Number(form.displayOrder) : null,
           additionalAttributes,
           useYn: form.useYn,
+          applicationStartDate: form.applicationStartDate || null,
+          applicationEndDate: form.applicationEndDate || null,
           ...(form.reason ? { reason: form.reason } : {}),
         }),
       });
@@ -287,6 +297,8 @@ export function DetailCodeManagementPage() {
                     <th>정렬순서</th>
                     <th>추가속성</th>
                     <th>사용여부</th>
+                    <th>적용 시작일</th>
+                    <th>적용 종료일</th>
                     <th>작업</th>
                   </tr>
                 </thead>
@@ -310,6 +322,8 @@ export function DetailCodeManagementPage() {
                         {formatAttributes(detailCode.additionalAttributes)}
                       </td>
                       <td>{detailCode.useYn}</td>
+                      <td>{detailCode.applicationStartDate}</td>
+                      <td>{detailCode.applicationEndDate ?? "-"}</td>
                       <td>
                         <button
                           type="button"
@@ -369,6 +383,14 @@ export function DetailCodeManagementPage() {
                 <div>
                   <dt>사용여부</dt>
                   <dd>{selectedDetailCode.useYn}</dd>
+                </div>
+                <div>
+                  <dt>적용 시작일</dt>
+                  <dd>{selectedDetailCode.applicationStartDate}</dd>
+                </div>
+                <div>
+                  <dt>적용 종료일</dt>
+                  <dd>{selectedDetailCode.applicationEndDate ?? "-"}</dd>
                 </div>
               </dl>
             </section>
@@ -464,6 +486,31 @@ export function DetailCodeManagementPage() {
                 </select>
               </label>
               <label>
+                적용 시작일
+                <input
+                  aria-label="적용 시작일"
+                  type="date"
+                  value={form.applicationStartDate}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      applicationStartDate: event.target.value,
+                    })
+                  }
+                />
+              </label>
+              <label>
+                적용 종료일
+                <input
+                  aria-label="적용 종료일"
+                  type="date"
+                  value={form.applicationEndDate}
+                  onChange={(event) =>
+                    setForm({ ...form, applicationEndDate: event.target.value })
+                  }
+                />
+              </label>
+              <label>
                 사유
                 <textarea
                   aria-label="사유"
@@ -474,7 +521,9 @@ export function DetailCodeManagementPage() {
                 />
               </label>
             </div>
-            <p>코드값, 코드명, 정렬순서는 서버 필수 검증 대상입니다.</p>
+            <p>
+              코드값, 코드명, 정렬순서, 적용 시작일은 서버 필수 검증 대상입니다.
+            </p>
             <div className="form-actions">
               <button
                 type="button"

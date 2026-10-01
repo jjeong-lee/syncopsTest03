@@ -13,7 +13,9 @@
     icon,
     business_category AS "businessCategory",
     description,
-    use_yn AS "useYn"
+    use_yn AS "useYn",
+    exposure_start_at AS "exposureStartAt",
+    exposure_end_at AS "exposureEndAt"
   </sql>
 
   <select id="findMenus" resultType="kr.ac.knue.facultyassessment.menus.MenuManagementService$MenuSummary">
@@ -59,16 +61,18 @@
         business_category = NULLIF(#{request.businessCategory}, ''),
         description = NULLIF(#{request.description}, ''),
         use_yn = #{useYn},
+        exposure_start_at = #{request.exposureStartAt},
+        exposure_end_at = #{request.exposureEndAt},
         updated_at = current_timestamp
     WHERE menu_id = #{menuId}
   </update>
 
   <insert id="insertMenu">
     INSERT INTO menu (
-      menu_id, menu_name, parent_menu_id, display_order, screen_id, url, icon, business_category, description, use_yn
+      menu_id, menu_name, parent_menu_id, display_order, screen_id, url, icon, business_category, description, use_yn, exposure_start_at, exposure_end_at
     ) VALUES (
       #{menuId}, #{request.menuName}, NULLIF(#{request.parentMenuId}, ''), #{request.displayOrder}, #{request.screenId},
-      #{request.url}, NULLIF(#{request.icon}, ''), NULLIF(#{request.businessCategory}, ''), NULLIF(#{request.description}, ''), #{useYn}
+      #{request.url}, NULLIF(#{request.icon}, ''), NULLIF(#{request.businessCategory}, ''), NULLIF(#{request.description}, ''), #{useYn}, #{request.exposureStartAt}, #{request.exposureEndAt}
     )
   </insert>
 

@@ -27,9 +27,12 @@ public class DetailCodeManagementController {
     @GetMapping("/api/code-groups/{groupId}/detail-codes")
     public ApiResponse<?> listDetailCodes(
         @PathVariable String groupId,
-        @RequestParam(required = false) String useYn
+        @RequestParam(required = false) String useYn,
+        @RequestParam(defaultValue = "false") boolean includeEnded
     ) {
-        return ApiResponse.success(detailCodeManagementService.findDetailCodes(new DetailCodeSearchCriteria(groupId, useYn)));
+        return ApiResponse.success(detailCodeManagementService.findDetailCodes(
+            new DetailCodeSearchCriteria(groupId, useYn, includeEnded)
+        ));
     }
 
     @PostMapping("/api/code-groups/{groupId}/detail-codes")

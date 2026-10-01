@@ -47,7 +47,11 @@ public class LocalAuthenticationAdapter implements AuthenticationPort {
     @Override
     public Optional<AuthenticatedUser> findActiveSession(String sessionId) {
         AuthenticationMapper.ActiveSession session = authenticationMapper.findActiveSession(sessionId);
-        return session == null ? Optional.empty() : Optional.of(loadUser(session.userId()));
+        if (session == null) {
+            return Optional.empty();
+        }
+        authenticationMapper.touchSession(sessionId);
+        return Optional.of(loadUser(session.userId()));
     }
 
     @Override

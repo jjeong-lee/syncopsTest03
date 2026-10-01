@@ -63,6 +63,7 @@ export function MenuInformationManagementPage() {
     "idle" | "loading" | "empty" | "error" | "permission" | "success"
   >("idle");
   const [message, setMessage] = useState("");
+  const [fieldError, setFieldError] = useState("");
 
   const isPermissionError = (error: unknown) =>
     error instanceof ApiRequestError &&
@@ -95,6 +96,7 @@ export function MenuInformationManagementPage() {
   const openCreate = () => {
     setForm(emptyForm);
     setMessage("");
+    setFieldError("");
     setModalOpen(true);
   };
 
@@ -102,12 +104,25 @@ export function MenuInformationManagementPage() {
     setSelectedMenu(menu);
     setForm(toMenuForm(menu));
     setMessage("");
+    setFieldError("");
     setModalOpen(true);
   };
 
   const saveMenu = async () => {
+    const requiredFields: Array<[keyof MenuForm, string]> = [
+      ["menuName", "메뉴명"],
+      ["displayOrder", "표시순서"],
+      ["screenId", "화면ID"],
+      ["url", "URL"],
+    ];
+    const missingField = requiredFields.find(([field]) => !form[field].trim());
+    if (missingField) {
+      setFieldError(`${missingField[1]}는 필수입니다.`);
+      return;
+    }
     setState("loading");
     setMessage("");
+    setFieldError("");
     try {
       await apiRequest<null>("/api/menus", {
         method: "POST",
@@ -127,6 +142,7 @@ export function MenuInformationManagementPage() {
       });
       const selectedMenuId = selectedMenu?.menuId;
       setModalOpen(false);
+      setFieldError("");
       await loadMenus(true, selectedMenuId);
     } catch (error) {
       const permissionDenied = isPermissionError(error);
@@ -491,6 +507,11 @@ export function MenuInformationManagementPage() {
               </label>
             </div>
             <p>메뉴명, 표시순서, 화면ID, URL은 서버 필수 검증 대상입니다.</p>
+            {fieldError && (
+              <p className="error-message" role="alert">
+                {fieldError}
+              </p>
+            )}
             <div className="form-actions">
               <button
                 type="button"
