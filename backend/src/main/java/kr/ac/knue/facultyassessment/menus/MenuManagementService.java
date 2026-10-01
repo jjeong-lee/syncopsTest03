@@ -1,5 +1,6 @@
 package kr.ac.knue.facultyassessment.menus;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
@@ -28,6 +29,7 @@ public class MenuManagementService {
 
     @Transactional
     public void saveMenuStructure(MenuRequest request, String actorUserId) {
+        validateUsagePeriod(request);
         MenuSummary before = menuManagementMapper.findMenuByNameAndScreen(request.menuName(), request.screenId());
         if (request.parentMenuId() != null && !request.parentMenuId().isBlank() && !menuManagementMapper.menuExists(request.parentMenuId())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "PARENT_MENU_NOT_FOUND", "부모메뉴를 찾을 수 없습니다.", "parentMenuId");
@@ -79,6 +81,17 @@ public class MenuManagementService {
         return value == null || value.isBlank() ? null : value;
     }
 
+    private void validateUsagePeriod(MenuRequest request) {
+        boolean usageManagement = "SCR-MENU-USAGE-MANAGEMENT".equals(request.screenId());
+        if (usageManagement && request.exposureStartAt() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "EXPOSURE_START_REQUIRED", "노출 시작일시는 필수입니다.", "exposureStartAt");
+        }
+        if (request.exposureStartAt() != null && request.exposureEndAt() != null
+            && request.exposureStartAt().isAfter(request.exposureEndAt())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_EXPOSURE_PERIOD", "노출 종료일시는 시작일시보다 빠를 수 없습니다.", "exposureEndAt");
+        }
+    }
+
     private String normalizedUseYn(String useYn) {
         return normalizedUseYn(useYn, "Y");
     }
@@ -87,6 +100,7 @@ public class MenuManagementService {
         return useYn == null || useYn.isBlank() ? fallback : useYn;
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public record MenuSummary(
         String menuId,
         String menuName,
@@ -97,7 +111,9 @@ public class MenuManagementService {
         String icon,
         String businessCategory,
         String description,
-        String useYn
+        String useYn,
+        java.time.OffsetDateTime exposureStartAt,
+        java.time.OffsetDateTime exposureEndAt
     ) {
     }
 }

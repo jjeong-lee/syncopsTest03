@@ -12,6 +12,8 @@ export type MenuSummary = {
   businessCategory: string | null;
   description: string | null;
   useYn: string;
+  exposureStartAt?: string | null;
+  exposureEndAt?: string | null;
 };
 
 type SearchForm = { parentMenuId: string; useYn: string };

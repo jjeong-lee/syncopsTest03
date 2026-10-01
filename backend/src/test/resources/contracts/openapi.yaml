@@ -926,6 +926,13 @@ paths:
       - REQ-021
       - REQ-050
       - REQ-051
+      - REQ-109
+      - REQ-111
+      - REQ-113
+      - REQ-116
+      - REQ-118
+      - REQ-120
+      - REQ-132
       x-roles: *id001
       parameters:
       - name: parentMenuId
@@ -980,7 +987,7 @@ paths:
                 $ref: '#/components/schemas/ApiError'
     post:
       operationId: saveMenu
-      summary: 메뉴 실행정보 저장
+      summary: 메뉴 사용여부·노출기간 저장
       x-no-response-data-reason: 메뉴 저장 결과를 돌려주지 않으며 data는 항상 null이다. 변경값은 listMenus 재조회로 확인한다.
       security:
       - sessionCookie: []
@@ -994,6 +1001,18 @@ paths:
       - REQ-041
       - REQ-042
       - REQ-033
+      - REQ-108
+      - REQ-109
+      - REQ-111
+      - REQ-112
+      - REQ-113
+      - REQ-115
+      - REQ-116
+      - REQ-117
+      - REQ-118
+      - REQ-119
+      - REQ-121
+      - REQ-132
       x-roles: *id001
       requestBody:
         required: true
@@ -1002,18 +1021,27 @@ paths:
             schema:
               $ref: '#/components/schemas/MenuRequest'
       x-business-rules:
-      - 메뉴명·화면ID·URL·아이콘·업무구분·설명을 관리한다
-      - 사용 중 메뉴는 물리삭제보다 use_yn 비활성화를 우선한다
-      - 이번 1차 범위의 메뉴 관리 API는 REQ-051에 열거된 제외 기능을 제공하지 않는다
+      - 메뉴명·화면ID·URL·아이콘·업무구분·설명을 관리한다.
+      - 사용 중 메뉴는 물리삭제보다 use_yn 비활성화를 우선한다.
+      - useYn=N 메뉴 삭제 요청은 물리 삭제하지 않고 기존 메뉴 행의 사용여부만 비활성화한다.
+      - 이번 1차 범위의 메뉴 관리 API는 REQ-051에 열거된 제외 기능을 제공하지 않는다.
+      - 메뉴 사용여부와 노출기간은 서버 시각의 포함 범위로 판정한다.
+      - exposure_start_at은 필수이고 exposure_end_at은 비울 수 있으며 시작은 종료보다 늦을 수 없다.
+      - 메뉴 하나의 사용여부·노출기간은 하나만 유지하고 중지 또는 기간 밖 메뉴는 직접 URL 접근도 차단한다.
       x-side-effects:
-      - menu의 실행정보와 부모 연결을 저장한다
-      - change_history에 메뉴 변경을 기록한다
+      - menu의 실행정보와 부모 연결을 저장한다.
+      - change_history에 메뉴 변경을 기록한다.
+      - menu.use_yn, menu.exposure_start_at, menu.exposure_end_at을 저장한다.
+      - 차단된 요청은 menu 행을 변경하지 않는다.
       x-required-tests:
-      - 'happy: R09가 menuName·screenId·url을 저장 -> menu 재조회에서 실행 화면 연결이 보인다'
+      - 'happy: R09가 useYn=Y·exposureStartAt과 선택 exposureEndAt을 저장 -> listMenus 재조회에서 menu의 use_yn과 exposure 기간이 보인다'
       - 'auth: R09가 아닌 세션 POST -> 403 ApiError를 반환한다'
-      - 'validation: screenId가 없는 요청 -> screenId 필드 오류 ApiError를 반환한다'
-      - 'business: useYn=N 메뉴 삭제 요청 -> menu 행은 남고 use_yn=N으로 재조회된다'
-      - 'side-effect: 저장 성공 -> change_history에 menu 전후 값과 사유가 존재한다'
+      - 'validation: exposureStartAt 없이 저장 -> exposureStartAt 필드 오류 ApiError를 반환한다'
+      - 'business: exposureStartAt보다 이른 exposureEndAt 저장 -> menu의 기존 노출기간이 변하지 않고 요청이 거부된다'
+      - 'side-effect: 저장 성공 -> menu 행에 use_yn·exposure_start_at·exposure_end_at이 기록된다'
+      x-state-transitions:
+      - 사용중 및 노출기간 내 -> 사용자 메뉴 표시와 직접 URL 접근 허용
+      - 중지 또는 노출기간 밖 -> 메뉴 미노출과 직접 URL 접근 차단
       responses:
         '200':
           description: 저장 성공
@@ -1220,6 +1248,16 @@ paths:
       x-related-requirements:
       - REQ-025
       - REQ-027
+      - REQ-104
+      - REQ-109
+      - REQ-111
+      - REQ-113
+      - REQ-116
+      - REQ-118
+      - REQ-120
+      - REQ-128
+      - REQ-129
+      - REQ-133
       x-roles: *id001
       parameters:
       - name: useYn
@@ -1227,6 +1265,12 @@ paths:
         schema:
           type: string
         required: false
+      - name: includeEnded
+        in: query
+        required: false
+        schema:
+          type: boolean
+        description: true이면 종료·중지 코드를 기존 codeName과 함께 조회한다.
       - name: page
         in: query
         schema:
@@ -1269,7 +1313,7 @@ paths:
                 $ref: '#/components/schemas/ApiError'
     post:
       operationId: saveDetailCode
-      summary: 상세코드 저장
+      summary: 상세코드 사용기간 저장
       x-no-response-data-reason: 상세코드 저장 결과를 돌려주지 않으며 data는 항상 null이다. 변경값은 listDetailCodes 재조회로 확인한다.
       security:
       - sessionCookie: []
@@ -1282,6 +1326,21 @@ paths:
       - REQ-041
       - REQ-042
       - REQ-033
+      - REQ-104
+      - REQ-108
+      - REQ-109
+      - REQ-111
+      - REQ-112
+      - REQ-113
+      - REQ-115
+      - REQ-116
+      - REQ-117
+      - REQ-118
+      - REQ-119
+      - REQ-122
+      - REQ-128
+      - REQ-129
+      - REQ-133
       x-roles: *id001
       requestBody:
         required: true
@@ -1290,17 +1349,25 @@ paths:
             schema:
               $ref: '#/components/schemas/DetailCodeRequest'
       x-business-rules:
-      - 코드값·코드명·상위코드·정렬순서·추가속성을 관리한다
-      - 사용 중 상세코드는 물리삭제보다 use_yn 비활성화를 우선한다
+      - 코드값·코드명·상위코드·정렬순서·추가속성을 관리한다.
+      - 사용 중 상세코드는 물리삭제보다 use_yn 비활성화를 우선한다.
+      - 코드 사용여부와 적용기간은 서버 시각의 date 포함 범위로 판정한다.
+      - application_start_date는 필수이고 application_end_date는 비울 수 있으며 시작은 종료보다 늦을 수 없다.
+      - 종료 또는 중지 코드는 신규 입력 선택값에서 제외하되 과거 자료의 code_value와 code_name은 변경하지 않는다.
       x-side-effects:
-      - detail_code를 저장하고 상위코드 연결을 유지한다
-      - change_history에 상세코드 변경을 기록한다
+      - detail_code를 저장하고 상위코드 연결을 유지한다.
+      - change_history에 상세코드 변경을 기록한다.
+      - detail_code.use_yn, detail_code.application_start_date, detail_code.application_end_date을 저장한다.
+      - 차단된 요청은 detail_code와 과거 업무자료의 code_value를 변경하지 않는다.
       x-required-tests:
-      - 'happy: R09가 codeValue·parentDetailCodeId·additionalAttributes를 저장 -> detail_code 재조회에 계층과 속성이 보인다'
+      - 'happy: R09가 useYn=Y·applicationStartDate와 선택 applicationEndDate를 저장 -> listDetailCodes 재조회에서 detail_code의 적용기간이 보인다'
       - 'auth: R09가 아닌 세션 POST -> 403 ApiError를 반환한다'
-      - 'validation: codeValue가 없는 요청 -> codeValue 필드 오류 ApiError를 반환한다'
-      - 'business: useYn=N 상세코드 삭제 요청 -> detail_code 행은 남고 use_yn=N으로 재조회된다'
-      - 'side-effect: 저장 성공 -> change_history에 detail_code 변경 이력이 존재한다'
+      - 'validation: applicationStartDate 없이 저장 -> applicationStartDate 필드 오류 ApiError를 반환한다'
+      - 'business: applicationStartDate보다 이른 applicationEndDate 저장 -> detail_code 기존 적용기간과 과거 업무자료 code_value가 변하지 않고 요청이 거부된다'
+      - 'side-effect: 저장 성공 -> detail_code 행에 use_yn·application_start_date·application_end_date가 기록된다'
+      x-state-transitions:
+      - 사용중 및 적용기간 내 -> 신규 입력 선택값 포함
+      - 중지 또는 적용기간 밖 -> 신규 입력 선택값 제외와 과거 codeName 유지
       responses:
         '200':
           description: 저장 성공
@@ -1953,6 +2020,221 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+  /settings/common:
+    get:
+      operationId: listCommonSettings
+      summary: 공통 환경설정 조회
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-123
+      - REQ-125
+      - REQ-126
+      - REQ-130
+      - REQ-134
+      x-roles:
+      - R09
+      x-pagination:
+        paginated: false
+        reason: 공통 환경설정은 다섯 항목의 단일 시스템 설정값만 반환한다.
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/CommonSettings'
+        '401':
+          description: 미인증
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+    post:
+      operationId: saveCommonSettings
+      summary: 공통 환경설정 저장
+      x-no-response-data-reason: 저장 결과 본문을 반환하지 않으며 변경값은 listCommonSettings 재조회로 확인한다.
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-105
+      - REQ-108
+      - REQ-112
+      - REQ-115
+      - REQ-123
+      - REQ-125
+      - REQ-126
+      - REQ-130
+      - REQ-134
+      x-roles:
+      - R09
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommonSettingsRequest'
+      x-business-rules:
+      - 다섯 공통 환경설정 항목은 모두 필수이며 항목 키별로 하나만 저장한다.
+      - pageSize는 20, 50, 100 중 하나이고 sessionIdleMinutes, defaultSearchPeriodDays, bulkQueryThreshold, longRunningWorkNoticeSeconds는 각각 허용 범위의 정수여야 한다.
+      - sessionIdleMinutes 변경은 새로 만들어지는 세션에만 적용하고 이미 열린 세션은 변경하지 않는다.
+      x-side-effects:
+      - system_setting의 setting_key별 setting_value와 updated_at, updated_by를 저장한다.
+      - 새 user_session은 저장된 sessionIdleMinutes를 사용한다.
+      x-required-tests:
+      - 'happy: R09가 다섯 설정값을 저장 -> listCommonSettings 재조회에서 system_setting의 setting_key별 setting_value가 보인다'
+      - 'auth: R09가 아닌 세션 POST -> 403 ApiError를 반환한다'
+      - 'validation: pageSize=30 저장 -> pageSize 필드 오류 ApiError를 반환한다'
+      - 'business: sessionIdleMinutes=1441 저장 -> system_setting 기존 setting_value가 변하지 않고 요청이 거부된다'
+      - 'side-effect: 저장 성공 후 새 user_session 생성 -> 새 세션의 idle 값이 저장된 sessionIdleMinutes로 기록된다'
+      x-state-transitions:
+      - 기존 설정값 -> 설정값 저장
+      - 기존 세션 -> 기존 idle 유지
+      - 새 세션 -> 저장된 sessionIdleMinutes 적용
+      responses:
+        '200':
+          description: 저장 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '400':
+          description: 입력 또는 업무 규칙 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 미인증
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /settings/reference-years:
+    get:
+      operationId: listReferenceYearSettings
+      summary: 기준연도 설정 조회
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-124
+      - REQ-127
+      - REQ-131
+      - REQ-135
+      x-roles:
+      - R09
+      x-pagination:
+        paginated: false
+        reason: 현재 평가연도·기본 조회연도와 대상연도 설정값 하나를 반환한다.
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ReferenceYearSettings'
+        '401':
+          description: 미인증
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+    post:
+      operationId: saveReferenceYearSettings
+      summary: 기준연도 설정 저장
+      x-no-response-data-reason: 저장 결과 본문을 반환하지 않으며 변경값은 listReferenceYearSettings 재조회로 확인한다.
+      security:
+      - sessionCookie: []
+      x-related-requirements:
+      - REQ-105
+      - REQ-106
+      - REQ-108
+      - REQ-112
+      - REQ-115
+      - REQ-124
+      - REQ-127
+      - REQ-131
+      - REQ-135
+      x-roles:
+      - R09
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReferenceYearSettingsRequest'
+      x-business-rules:
+      - currentEvaluationYear와 defaultSearchYear는 각각 하나만 유효하며 서로 같음·선후 제약을 두지 않는다.
+      - referenceDataCopyYn와 initializationYn는 targetYear에 대한 설정값만 저장하고 실제 복사·초기화나 기존 연도 평가자료 변경을 수행하지 않는다.
+      x-side-effects:
+      - system_setting에 기준연도와 target_year별 referenceDataCopyYn, initializationYn 설정값 및 감사 필드를 기록한다.
+      - 거부된 요청은 기존 연도 평가자료를 변경하지 않는다.
+      x-required-tests:
+      - 'happy: R09가 서로 다른 currentEvaluationYear·defaultSearchYear와 targetYear 플래그를 저장 -> listReferenceYearSettings 재조회에서 system_setting 설정값이 보인다'
+      - 'auth: R09가 아닌 세션 POST -> 403 ApiError를 반환한다'
+      - 'validation: targetYear 없이 저장 -> targetYear 필드 오류 ApiError를 반환한다'
+      - 'business: referenceDataCopyYn에 Y/N 이외 값을 저장 -> system_setting 기존 target_year 설정값과 기존 연도 평가자료가 변하지 않고 요청이 거부된다'
+      - 'side-effect: 저장 성공 -> system_setting에 target_year와 referenceDataCopyYn·initializationYn 감사값이 기록된다'
+      x-state-transitions:
+      - 기존 기준연도 설정 -> 기준연도 설정 저장
+      - 대상연도 설정 미지정 -> target_year별 복사·초기화 여부 저장
+      responses:
+        '200':
+          description: 저장 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '400':
+          description: 입력 또는 업무 규칙 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 미인증
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
 components:
   securitySchemes:
     sessionCookie:
@@ -2117,6 +2399,8 @@ components:
       - displayOrder
       - screenId
       - url
+      - useYn
+      - exposureStartAt
       properties:
         menuName:
           type: string
@@ -2137,6 +2421,13 @@ components:
           type: string
         useYn:
           $ref: '#/components/schemas/UseYn'
+        exposureStartAt:
+          type: string
+          format: date-time
+        exposureEndAt:
+          type: string
+          format: date-time
+          nullable: true
         reason:
           type: string
     MenuOrderRequest:
@@ -2175,6 +2466,8 @@ components:
       - codeValue
       - codeName
       - displayOrder
+      - useYn
+      - applicationStartDate
       properties:
         codeValue:
           type: string
@@ -2190,6 +2483,13 @@ components:
           additionalProperties: true
         useYn:
           $ref: '#/components/schemas/UseYn'
+        applicationStartDate:
+          type: string
+          format: date
+        applicationEndDate:
+          type: string
+          format: date
+          nullable: true
         reason:
           type: string
     HealthStatus:
@@ -2393,6 +2693,13 @@ components:
           type: string
         useYn:
           $ref: '#/components/schemas/UseYn'
+        exposureStartAt:
+          type: string
+          format: date-time
+        exposureEndAt:
+          type: string
+          format: date-time
+          nullable: true
     CodeGroupSummary:
       type: object
       properties:
@@ -2426,6 +2733,13 @@ components:
           nullable: true
         useYn:
           $ref: '#/components/schemas/UseYn'
+        applicationStartDate:
+          type: string
+          format: date
+        applicationEndDate:
+          type: string
+          format: date
+          nullable: true
     DataScopeType:
       type: string
       enum:
@@ -2564,6 +2878,62 @@ components:
           type: string
         reason:
           type: string
+    CommonSettingsRequest:
+      type: object
+      required:
+      - sessionIdleMinutes
+      - pageSize
+      - defaultSearchPeriodDays
+      - bulkQueryThreshold
+      - longRunningWorkNoticeSeconds
+      properties:
+        sessionIdleMinutes:
+          type: integer
+          minimum: 1
+          maximum: 1440
+        pageSize:
+          type: integer
+          enum:
+          - 20
+          - 50
+          - 100
+        defaultSearchPeriodDays:
+          type: integer
+          minimum: 1
+          maximum: 365
+        bulkQueryThreshold:
+          type: integer
+          minimum: 1
+          maximum: 100000
+        longRunningWorkNoticeSeconds:
+          type: integer
+          minimum: 1
+          maximum: 3600
+    CommonSettings:
+      allOf:
+      - $ref: '#/components/schemas/CommonSettingsRequest'
+    ReferenceYearSettingsRequest:
+      type: object
+      required:
+      - currentEvaluationYear
+      - defaultSearchYear
+      - targetYear
+      - referenceDataCopyYn
+      - initializationYn
+      properties:
+        currentEvaluationYear:
+          type: integer
+        defaultSearchYear:
+          type: integer
+        targetYear:
+          type: integer
+        referenceDataCopyYn:
+          $ref: '#/components/schemas/UseYn'
+        initializationYn:
+          $ref: '#/components/schemas/UseYn'
+    ReferenceYearSettings:
+      allOf:
+      - $ref: '#/components/schemas/ReferenceYearSettingsRequest'
 x-uncovered-requirements:
 - canonical_id: REQ-037
   status: non-functional
@@ -2643,3 +3013,33 @@ x-uncovered-requirements:
 - canonical_id: REQ-084
   status: screen-only
   evidence: 저장·변경·종료의 실행 전 확인과 결과 안내는 화면 계약이며 별도 HTTP operation이 아니다.
+- canonical_id: REQ-097
+  status: out-of-scope
+  evidence: 교수업적평가·학술지원금의 개별 업적입력·점수판정·신청 업무규칙은 이번 공통 설정 HTTP 계약의 범위 밖이다.
+- canonical_id: REQ-098
+  status: out-of-scope
+  evidence: 인접 기능의 기준정보·원천자료·권한은 이번 변경에서 함께 수정하지 않아 HTTP operation을 추가하지 않는다.
+- canonical_id: REQ-099
+  status: out-of-scope
+  evidence: 운영기관의 로그인 인증방식과 실제 외부연계 규격은 원문에서 확정하지 않아 HTTP operation을 선언하지 않는다.
+- canonical_id: REQ-100
+  status: out-of-scope
+  evidence: 기존 메뉴 구조·실행정보·접근권한과 R01~R09 정의·권한 매트릭스 변경은 제외되어 별도 HTTP operation이 없다.
+- canonical_id: REQ-101
+  status: out-of-scope
+  evidence: 원문에 없는 물리 삭제 기능은 제공하지 않으므로 삭제 HTTP operation이 없다.
+- canonical_id: REQ-102
+  status: out-of-scope
+  evidence: 원문에 명시되지 않은 일괄처리 기능은 새로 만들지 않아 batch HTTP operation이 없다.
+- canonical_id: REQ-103
+  status: out-of-scope
+  evidence: 기준정보 복사·초기화의 실제 실행은 명시적으로 제외되어 설정 저장 외 실행 HTTP operation이 없다.
+- canonical_id: REQ-107
+  status: screen-only
+  evidence: 목록 기본 표시 건수와 사용자의 20/50/100 선택은 화면 진입·선택 UI 계약이며 별도 HTTP operation이 아니다.
+- canonical_id: REQ-110
+  status: data-constraint
+  evidence: menu와 detail_code 스키마 변경의 이번 요청 전용 경계는 migration 소유 제약이며 별도 HTTP operation이 아니다.
+- canonical_id: REQ-114
+  status: screen-only
+  evidence: 저장·변경·종료 전 확인 메시지와 후속 결과 안내는 화면 계약이며 별도 HTTP operation이 아니다.

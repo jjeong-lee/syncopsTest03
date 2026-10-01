@@ -11,6 +11,8 @@ const detailCode = (
     displayOrder: number;
     additionalAttributes: Record<string, string> | null;
     useYn: string;
+    applicationStartDate: string;
+    applicationEndDate: string | null;
   }> = {},
 ) => ({
   detailCodeId: "DETAIL-CODE-CHILD",
@@ -20,6 +22,8 @@ const detailCode = (
   displayOrder: 2,
   additionalAttributes: { mappingKey: "CHILD-MAP" },
   useYn: "Y",
+  applicationStartDate: "2020-01-01",
+  applicationEndDate: null,
   ...overrides,
 });
 
