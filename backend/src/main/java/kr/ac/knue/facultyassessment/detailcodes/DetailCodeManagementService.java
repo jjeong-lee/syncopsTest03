@@ -1,8 +1,8 @@
 package kr.ac.knue.facultyassessment.detailcodes;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.UUID;
 import kr.ac.knue.facultyassessment.common.ApiException;
@@ -94,7 +94,7 @@ public class DetailCodeManagementService {
         }
         try {
             return objectMapper.readTree(attributes);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("상세코드 추가속성을 읽을 수 없습니다.", exception);
         }
     }
@@ -105,7 +105,7 @@ public class DetailCodeManagementService {
         }
         try {
             return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("상세코드 변경 추적 값을 직렬화할 수 없습니다.", exception);
         }
     }

@@ -1,0 +1,99 @@
+{
+  "coding_conventions": {
+    "language_version": "Java 17; Spring Boot 3.3.12 (backend/pom.xml:8-23)",
+    "build_tool": "Maven (backend/pom.xml:64-70)",
+    "package_structure": "Feature packages under kr.ac.knue.facultyassessment.<feature>, each containing controller, service, mapper, request/criteria DTOs, with XML mappers under backend/src/main/resources/mapper (for example assignments; backend/src/main/java/kr/ac/knue/facultyassessment/assignments/)",
+    "dto_style": "Java records for request, criteria, and mapper result DTOs (for example AssignmentManagementMapper.java:26-31 and LoginRequest.java:5-9)",
+    "service_style": "Spring @Service classes with constructor-injected mapper dependencies; write methods carry @Transactional (AssignmentManagementService.java:13-55)",
+    "persistence_style": "MyBatis XML mapper is dominant: 9 XML mapper files versus 2 annotation-SQL mapper interfaces among 11 mapper interfaces; follow XML mapper interfaces for generated feature persistence. AuthenticationMapper.java is an annotation-SQL minority.",
+    "controller_response_style": "Spring @RestController methods wrap JSON payloads in ApiResponse.success(...); binary exports use ResponseEntity<byte[]> (AssignmentManagementController.java:18-37)"
+  },
+  "interface_contracts": {
+    "api_endpoints": {},
+    "dtos": {},
+    "db_schema": {
+      "conventions": {
+        "primary_key": "varchar(100) PRIMARY KEY for business entities; manually supplied IDs (V1__foundation_schema.sql:1-191 and V4__assignment_management.sql:1-49)",
+        "audit_columns": [
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone",
+            "nullable": false,
+            "default": "current_timestamp"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone",
+            "nullable": false,
+            "default": "current_timestamp"
+          }
+        ],
+        "fk_column_pattern": "Referenced entity singular name plus _id, for example user_id and organization_id (V4__assignment_management.sql:1-49)",
+        "index_name_pattern": "idx_{table}_{key-or-filters}, for example idx_position_assignment_key_dates (V4__assignment_management.sql:47-49)",
+        "soft_delete_pattern": "use_yn varchar(1) NOT NULL DEFAULT 'Y' CHECK (use_yn IN ('Y', 'N')) on applicable management tables (V1__foundation_schema.sql:1-158)",
+        "evidence": [
+          "backend/src/main/resources/db/migration/V1__foundation_schema.sql:1-191",
+          "backend/src/main/resources/db/migration/V4__assignment_management.sql:1-49"
+        ]
+      },
+      "existing_tables": {},
+      "new_tables_named_by_tasks": [],
+      "gap": "The supplied tasks path .aiops-spec/tasks.md does not exist, and no codegen-context or staged design/API documents exist in the worktree. Scope-specific existing and new tables cannot be derived without guessing."
+    }
+  },
+  "security_mapping": {
+    "endpoints": {}
+  },
+  "auth_fixture_facts": null,
+  "auth_fixture_gap": "No scoped endpoints or roles can be determined because .aiops-spec/tasks.md and staged specification artifacts are absent. Independently, the observed login verifier is PBKDF2WithHmacSHA256 with a separate salt (LocalAuthenticationAdapter.java:81-101), which is outside the permitted auth_fixture_facts hash_scheme values.",
+  "transaction_boundaries": {},
+  "reference_implementation": {
+    "similar_feature": null,
+    "files_to_read_as_template": [
+      "backend/src/main/java/kr/ac/knue/facultyassessment/assignments/AssignmentManagementController.java",
+      "backend/src/main/java/kr/ac/knue/facultyassessment/assignments/AssignmentManagementService.java",
+      "backend/src/main/java/kr/ac/knue/facultyassessment/assignments/AssignmentManagementMapper.java",
+      "backend/src/main/resources/mapper/AssignmentManagementMapper.xml",
+      "backend/src/main/resources/db/migration/V4__assignment_management.sql"
+    ],
+    "divergences": [
+      "No staged task or effective design is available, so a nearest feature and intentional divergences cannot be selected without guessing."
+    ]
+  },
+  "file_manifest": {
+    "create": [],
+    "modify": []
+  },
+  "dependency_graph": {},
+  "parallel_work_orders": [],
+  "behavior_preservation": {},
+  "completeness_check": {
+    "screens_required": [],
+    "apis_required": [],
+    "gaps_detected": [
+      "Missing required staged task file: .aiops-spec/tasks.md.",
+      "Missing codegen-context directory and effective design/API-contract artifacts; only the requested output directory was created.",
+      "Without task IDs, screens, endpoints, table scope, authorization requirements, task-to-file mapping, and safe parallel batches cannot be derived."
+    ]
+  },
+  "review_focus_failure_modes": [
+    {
+      "risk": "Generating implementation from an inferred scope would create unsupported routes, schema, permissions, or UI files.",
+      "affects": "All feature layers",
+      "prevention": "Restore the staged tasks.md and effective design/API contract, then rerun this read-only analysis before code generation.",
+      "evidence": [
+        "Requested path .aiops-spec/tasks.md was not present during analysis.",
+        "No .aiops-spec or codegen-context specification files were present in the worktree."
+      ]
+    },
+    {
+      "risk": "A generated authentication fixture could use an incompatible password-hash format.",
+      "affects": "Authentication integration tests",
+      "prevention": "Handle the PBKDF2WithHmacSHA256 plus separate password_salt contract explicitly in the runner; do not select one of the unsupported fixture hash schemes.",
+      "evidence": [
+        "backend/src/main/java/kr/ac/knue/facultyassessment/auth/LocalAuthenticationAdapter.java:81-101",
+        "backend/src/main/resources/db/migration/V1__foundation_schema.sql:1-10"
+      ]
+    }
+  ]
+}
